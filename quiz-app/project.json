@@ -1,0 +1,95 @@
+{
+  "name": "quiz-app",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "app",
+  "sourceRoot": "quiz-app/src",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/quiz-app",
+        "browser": "quiz-app/src/main.ts",
+        "server": "quiz-app/src/main.server.ts",
+        "polyfills": ["zone.js"],
+        "tsConfig": "quiz-app/tsconfig.app.json",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "quiz-app/public"
+          },
+          {
+            "glob": "**/*",
+            "input": "quiz-app/src/assets",
+            "output": "/assets"
+          }
+        ],
+        "styles": ["quiz-app/src/styles.css"]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "500kb",
+              "maximumError": "1mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "4kb",
+              "maximumError": "8kb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      },
+      "defaultConfiguration": "production"
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@angular/build:dev-server",
+      "configurations": {
+        "production": {
+          "buildTarget": "quiz-app:build:production"
+        },
+        "development": {
+          "buildTarget": "quiz-app:build:development"
+        }
+      },
+      "defaultConfiguration": "development"
+    },
+    "extract-i18n": {
+      "executor": "@angular/build:extract-i18n",
+      "options": {
+        "buildTarget": "quiz-app:build"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "jestConfig": "quiz-app/jest.config.ts",
+        "tsConfig": "quiz-app/tsconfig.spec.json"
+      }
+    },
+    "serve-static": {
+      "continuous": true,
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "quiz-app:build",
+        "staticFilePath": "dist/quiz-app/browser",
+        "spa": true
+      }
+    }
+  }
+}

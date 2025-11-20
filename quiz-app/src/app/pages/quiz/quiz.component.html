@@ -1,0 +1,109 @@
+<div class="quiz-container" *ngIf="!loading">
+  <!-- Quiz Header -->
+  <div class="quiz-header">
+    <div>
+      <h1 class="quiz-title">{{ quiz?.name }}</h1>
+      <p *ngIf="currentQuestion">Question {{ questionIndex }} of {{ totalQuestions }}</p>
+    </div>
+    <div class="quiz-info">
+      <div class="info-item">
+        <span class="info-label">Score</span>
+        <span class="info-value">{{ score }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Questions</span>
+        <span class="info-value">{{ questionIndex }}/{{ totalQuestions }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Question Card -->
+  <div *ngIf="currentQuestion" class="question-card">
+    <div class="question-number">Round {{ questionIndex }} - SubWars 5</div>
+    <h2 class="question-text">Listen to the voice line and identify the hero</h2>
+    <p class="quiz-context" *ngIf="!isRegistered" style="color: var(--text-secondary); font-size: 14px; margin-top: 10px;">
+      Audience quiz during SubWars 5 tournament stream. Register to submit answers and be eligible for giveaways!
+    </p>
+
+    <!-- Audio Player -->
+    <div class="audio-player">
+      <button class="btn-audio" (click)="playAudio()">▶</button>
+      <div class="audio-waveform">
+        Click play to hear the voice line
+      </div>
+    </div>
+
+    <!-- Timer -->
+    <div class="timer-container">
+      <div class="timer-circle" [ngClass]="getTimerClass()">
+        <div class="timer-value">{{ timeLeft }}</div>
+      </div>
+    </div>
+
+    <!-- Answer Input -->
+    <div class="answer-input-container" *ngIf="!submitted">
+      <div *ngIf="!isRegistered" class="registration-required card-dota" style="margin-bottom: 20px; background: rgba(255, 152, 0, 0.1); border-color: var(--orange);">
+        <p style="color: var(--orange); margin: 0;">
+          ⚠️ Registration required to submit answers. 
+          <a (click)="router.navigate(['/registration'])" style="color: var(--accent-green); cursor: pointer; text-decoration: underline;">
+            Register for SubWars 5
+          </a> to compete on the leaderboard and be eligible for giveaways!
+        </p>
+      </div>
+      <input
+        type="text"
+        class="answer-input"
+        [(ngModel)]="answer"
+        placeholder="Enter hero name..."
+        (keyup.enter)="submitAnswer()"
+        [disabled]="submitted || !isRegistered"
+        autofocus
+      />
+      <button
+        class="btn-dota btn-dota-submit"
+        (click)="submitAnswer()"
+        [disabled]="submitted || !answer.trim() || !isRegistered"
+      >
+        {{ isRegistered ? 'Submit Answer' : 'Register to Submit' }}
+      </button>
+    </div>
+
+    <!-- Submitted State -->
+    <div *ngIf="submitted" class="submitted-message">
+      <p>Answer submitted! Waiting for next question...</p>
+    </div>
+  </div>
+
+  <!-- No Active Question -->
+  <div *ngIf="!currentQuestion" class="no-question">
+    <div class="card-dota">
+      <h2>Round Complete - SubWars 5</h2>
+      <p>This quiz round has ended. Check the leaderboard to see your progress. 
+        Top players are eligible for giveaways throughout the SubWars 5 tournament stream!</p>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="leaderboard" *ngIf="leaderboard.length > 0">
+    <h2 class="leaderboard-title">SubWars 5 Leaderboard</h2>
+    <p style="text-align: center; color: var(--text-secondary); margin-bottom: 20px;">
+      Top players are eligible for giveaways during the tournament stream!
+    </p>
+    <ul class="leaderboard-list">
+      <li *ngFor="let entry of leaderboard; let i = index" class="leaderboard-item">
+        <span class="rank" [ngClass]="{'top-1': i === 0, 'top-2': i === 1, 'top-3': i === 2}">
+          {{ i + 1 }}
+        </span>
+        <div class="player-info">
+          <div class="player-name">{{ entry.users?.in_game_name || 'Unknown' }}</div>
+        </div>
+        <div class="player-score">{{ entry.score }}</div>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div *ngIf="loading" class="loading">
+  Loading quiz...
+</div>
+

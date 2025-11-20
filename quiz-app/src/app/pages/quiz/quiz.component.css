@@ -1,0 +1,20 @@
+.loading,
+.no-question {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.submitted-message {
+  text-align: center;
+  padding: 20px;
+  color: var(--accent-green);
+  font-size: 18px;
+  margin-top: 20px;
+}
+
+.no-question .card-dota {
+  max-width: 500px;
+  margin: 0 auto;
+  text-align: center;
+}
+
