@@ -1,7 +1,8 @@
-import { Injectable, PLATFORM_ID, Inject } from '@angular/core';
+import { Injectable, PLATFORM_ID, Inject, Optional, Injector } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
+import { AuthService } from './auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -9,20 +10,43 @@ import { environment } from '../../environments/environment';
 export class SupabaseService {
   private supabase: SupabaseClient | null = null;
   private isBrowser: boolean;
+  private authService: AuthService | null = null;
 
-  constructor(@Inject(PLATFORM_ID) private platformId: Object) {
+  constructor(
+    @Inject(PLATFORM_ID) private platformId: Object,
+    private injector: Injector
+  ) {
     this.isBrowser = isPlatformBrowser(this.platformId);
 
     // Only initialize Supabase client in browser
     if (this.isBrowser) {
+      // Create a read-only client without auth persistence to avoid lock conflicts
+      // This client is used for read-only operations and doesn't manage auth tokens
+      // AuthService handles all auth operations with its own client
       this.supabase = createClient(
         environment.supabase.url,
-        environment.supabase.anonKey
+        environment.supabase.anonKey,
+        {
+          auth: {
+            persistSession: false, // Disable auth persistence - no lock conflicts
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+            storage: undefined, // No storage - no lock conflicts
+            flowType: 'pkce'
+          },
+          global: {
+            headers: {
+              'X-Client-Info': 'quiz-app-readonly'
+            }
+          }
+        }
       );
     }
   }
 
   get client(): SupabaseClient | null {
+    // For read-only operations, use our client
+    // For auth-related operations, components should use AuthService directly
     return this.supabase;
   }
 

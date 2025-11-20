@@ -3,17 +3,21 @@
     <h1 class="registration-title">SubWars 5 Participant Registration</h1>
     <p class="registration-subtitle">Apply to be part of SubWars 5 - The Ultimate Showdown. Fill in your player details below to participate in the tournament.</p>
     
-    <div class="registration-info card-dota" style="margin-bottom: 32px; padding: 20px; background: rgba(255, 68, 68, 0.1); border-color: var(--accent-green);">
+    <div class="registration-info card-dota" style="margin-bottom: 32px; padding: 20px; background: rgba(102, 192, 244, 0.1); border-image: linear-gradient(135deg, #66c0f4, #cdbe91) 1;">
       <p style="margin: 0; color: var(--text-secondary); line-height: 1.6;">
-        <strong style="color: var(--accent-green);">Community Tournament:</strong> Anyone from the community can participate in SubWars 5! 
+        <strong style="background: linear-gradient(135deg, #66c0f4 0%, #cdbe91 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Community Tournament:</strong> Anyone from the community can participate in SubWars 5! 
         Make sure your Steam profile is set to PUBLIC and join our Discord server for event updates.
       </p>
     </div>
 
-    <div *ngIf="error" class="error-message">{{ error }}</div>
-    <div *ngIf="success" class="success-message">
-      Registration submitted successfully! Redirecting...
-    </div>
+    @if (error) {
+      <div class="error-message">{{ error }}</div>
+    }
+    @if (success) {
+      <div class="success-message">
+        Registration submitted successfully! Redirecting...
+      </div>
+    }
 
     <form (ngSubmit)="onSubmit()" #registrationForm="ngForm">
       <!-- SUB WARS 5 PLAYER DETAILS Section -->
@@ -168,11 +172,17 @@
             required
           />
           <label class="file-upload-label">
-            <span *ngIf="!profileImage">Choose Profile Image</span>
-            <span *ngIf="profileImage">{{ profileImage.name }}</span>
+            @if (!profileImage) {
+              <span>Choose Profile Image</span>
+            }
+            @if (profileImage) {
+              <span>{{ profileImage.name }}</span>
+            }
           </label>
         </div>
-        <img *ngIf="profileImagePreview" [src]="profileImagePreview" class="file-preview" />
+        @if (profileImagePreview) {
+          <img [src]="profileImagePreview" class="file-preview" />
+        }
       </div>
 
       <!-- Proof of Payment Section -->
@@ -180,15 +190,15 @@
         <h2>PROOF OF PAYMENT</h2>
       </div>
 
-      <div class="payment-info card-dota" style="padding: 20px; margin-bottom: 24px; background: rgba(255, 68, 68, 0.1); border-color: var(--accent-green);">
+      <div class="payment-info card-dota" style="padding: 20px; margin-bottom: 24px; background: rgba(102, 192, 244, 0.1); border-image: linear-gradient(135deg, #66c0f4, #cdbe91) 1;">
         <p style="margin: 0 0 16px 0; color: var(--text-secondary); line-height: 1.6;">
-          <strong style="color: var(--accent-green);">Entry Fee: INR 300</strong>
+          <strong style="background: linear-gradient(135deg, #66c0f4 0%, #cdbe91 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Entry Fee: INR 300</strong>
         </p>
         <p style="margin: 0 0 12px 0; color: var(--text-muted); font-size: 14px;">
           Pay the entry fee using the UPI QR code or UPI ID below and upload the screenshot of the transaction.
         </p>
         <div style="background: var(--darker-bg); padding: 16px; border-radius: 8px; margin: 16px 0; text-align: center;">
-          <p style="margin: 0 0 12px 0; color: var(--accent-green); font-weight: 600;">UPI ID: omkar.urunkar13@okaxis</p>
+          <p style="margin: 0 0 12px 0; background: linear-gradient(135deg, #66c0f4 0%, #cdbe91 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 600;">UPI ID: omkar.urunkar13@okaxis</p>
           <p style="margin: 0; color: var(--text-muted); font-size: 12px;">Scan to pay with any UPI app</p>
         </div>
       </div>
@@ -206,11 +216,17 @@
             required
           />
           <label class="file-upload-label">
-            <span *ngIf="!proofOfPayment">Add file</span>
-            <span *ngIf="proofOfPayment">{{ proofOfPayment.name }}</span>
+            @if (!proofOfPayment) {
+              <span>Add file</span>
+            }
+            @if (proofOfPayment) {
+              <span>{{ proofOfPayment.name }}</span>
+            }
           </label>
         </div>
-        <img *ngIf="proofOfPaymentPreview" [src]="proofOfPaymentPreview" class="file-preview" />
+        @if (proofOfPaymentPreview) {
+          <img [src]="proofOfPaymentPreview" class="file-preview" />
+        }
       </div>
 
       <div class="form-group">

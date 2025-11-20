@@ -1,0 +1,101 @@
+.registration-container {
+  min-height: 100vh;
+  padding: 40px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.registration-card {
+  width: 100%;
+  max-width: 700px;
+}
+
+.registration-title {
+  font-family: 'Reaver', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 36px;
+  font-weight: 700; /* Use Reaver Bold (SemiBold) */
+  text-align: center;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.registration-subtitle {
+  text-align: center;
+  color: var(--text-secondary);
+  margin-bottom: 40px;
+  font-size: 18px;
+}
+
+.error-message {
+  background: rgba(194, 60, 42, 0.2);
+  border: 1px solid #c23c2a;
+  color: #c23c2a;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.success-message {
+  background: linear-gradient(135deg, rgba(102, 192, 244, 0.15) 0%, rgba(205, 190, 145, 0.1) 100%);
+  border: 1px solid;
+  border-image: linear-gradient(135deg, #66c0f4, #cdbe91) 1;
+  color: #66c0f4;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.file-preview {
+  max-width: 200px;
+  max-height: 200px;
+  margin-top: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(102, 192, 244, 0.4);
+}
+
+.form-section-header {
+  background: rgba(102, 192, 244, 0.15);
+  border: 2px solid;
+  border-image: linear-gradient(135deg, #66c0f4, #cdbe91) 1;
+  padding: 16px 24px;
+  margin: 32px 0 24px 0;
+  border-radius: 8px;
+}
+
+.form-section-header h2 {
+  font-family: 'Reaver', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  background: linear-gradient(135deg, #66c0f4 0%, #cdbe91 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 20px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.checkbox-group input[type="checkbox"] {
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.discord-info,
+.payment-info {
+  border: 2px solid;
+}
+
+.discord-info a {
+  text-decoration: none;
+}
+

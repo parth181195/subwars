@@ -96,49 +96,61 @@
   </section>
 
   <!-- Active Quizzes Section -->
-  <section class="active-quizzes-section" *ngIf="isAuthenticated">
-    <div class="container">
-      <h2 class="section-title">Active Quiz Sessions</h2>
-      
-      <div *ngIf="loading" class="loading">
-        <div class="loading-spinner">Loading quizzes...</div>
-      </div>
-      
-      <div *ngIf="!loading && activeQuizzes.length === 0" class="no-quizzes">
-        <div class="card-dota">
-          <h3>Quiz Coming Soon</h3>
-          <p>The quiz will be available during the SubWars 5 tournament stream. Check back when the event starts!</p>
-        </div>
-      </div>
-      
-      <div class="quizzes-grid" *ngIf="!loading && activeQuizzes.length > 0">
-        <div *ngFor="let quiz of activeQuizzes" class="card-dota quiz-card">
-          <h3 class="quiz-card-title">{{ quiz.name }}</h3>
-          <p class="quiz-card-description">{{ quiz.description }}</p>
-          <div class="quiz-card-actions">
-            <button class="btn-dota" (click)="joinQuiz(quiz.id)">
-              Join Quiz
-            </button>
+  @if (isAuthenticated) {
+    <section class="active-quizzes-section">
+      <div class="container">
+        <h2 class="section-title">Active Quiz Sessions</h2>
+        
+        @if (loading) {
+          <div class="loading">
+            <div class="loading-spinner">Loading quizzes...</div>
           </div>
-        </div>
-      </div>
+        }
+        
+        @if (!loading && activeQuizzes.length === 0) {
+          <div class="no-quizzes">
+            <div class="card-dota">
+              <h3>Quiz Coming Soon</h3>
+              <p>The quiz will be available during the SubWars 5 tournament stream. Check back when the event starts!</p>
+            </div>
+          </div>
+        }
+        
+        @if (!loading && activeQuizzes.length > 0) {
+          <div class="quizzes-grid">
+            @for (quiz of activeQuizzes; track quiz.id) {
+              <div class="card-dota quiz-card">
+                <h3 class="quiz-card-title">{{ quiz.name }}</h3>
+                <p class="quiz-card-description">{{ quiz.description }}</p>
+                <div class="quiz-card-actions">
+                  <button class="btn-dota" (click)="joinQuiz(quiz.id)">
+                    Join Quiz
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
 
-      <div class="registration-prompt" *ngIf="!isRegistered" style="margin-top: 40px;">
-        <div class="card-dota">
-          <h3>Register to Participate & Win Giveaways</h3>
-          <p>
-            Registration is required to submit answers, appear on the leaderboard, and be eligible for giveaways. 
-            Sign in and register now to participate fully!
-          </p>
-          <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
-            <button class="btn-dota" (click)="goToRegistration()">
-              Register Now
-            </button>
+        @if (!isRegistered) {
+          <div class="registration-prompt" style="margin-top: 40px;">
+            <div class="card-dota">
+              <h3>Register to Participate & Win Giveaways</h3>
+              <p>
+                Registration is required to submit answers, appear on the leaderboard, and be eligible for giveaways. 
+                Sign in and register now to participate fully!
+              </p>
+              <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                <button class="btn-dota" (click)="goToRegistration()">
+                  Register Now
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        }
       </div>
-    </div>
-  </section>
+    </section>
+  }
 
   <!-- Call to Action -->
   <section class="cta-section">
@@ -146,21 +158,27 @@
       <div class="cta-card card-dota">
         <h2>Ready to Test Your Knowledge?</h2>
         <p>Sign in to participate in the quiz during SubWars 5 tournament stream!</p>
-        <div class="cta-buttons" *ngIf="!isAuthenticated">
-          <button class="btn-dota btn-large" (click)="signIn()">
-            Sign In to Play
-          </button>
-        </div>
-        <div class="cta-buttons" *ngIf="isAuthenticated && firstQuizId">
-          <button class="btn-dota btn-large" (click)="joinQuiz(firstQuizId)">
-            Join Quiz Now
-          </button>
-        </div>
-        <div class="cta-buttons" *ngIf="isAuthenticated && !firstQuizId">
-          <p style="color: var(--text-secondary); margin-top: 16px;">
-            Quiz will be available during the SubWars 5 tournament stream. Check back soon!
-          </p>
-        </div>
+        @if (!isAuthenticated) {
+          <div class="cta-buttons">
+            <button class="btn-dota btn-large" (click)="signIn()">
+              Sign In to Play
+            </button>
+          </div>
+        }
+        @if (isAuthenticated && firstQuizId) {
+          <div class="cta-buttons">
+            <button class="btn-dota btn-large" (click)="joinQuiz(firstQuizId)">
+              Join Quiz Now
+            </button>
+          </div>
+        }
+        @if (isAuthenticated && !firstQuizId) {
+          <div class="cta-buttons">
+            <p style="color: var(--text-secondary); margin-top: 16px;">
+              Quiz will be available during the SubWars 5 tournament stream. Check back soon!
+            </p>
+          </div>
+        }
       </div>
     </div>
   </section>

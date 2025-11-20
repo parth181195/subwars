@@ -1,15 +1,20 @@
 <div class="registration-status-container">
   <div class="status-card card-dota">
-    <div *ngIf="loading" class="loading-section">
-      <div class="loading">Loading registration status...</div>
-    </div>
+    @if (loading) {
+      <div class="loading-section">
+        <div class="loading">Loading registration status...</div>
+      </div>
+    }
 
-    <div *ngIf="error" class="error-section">
-      <div class="error-message">{{ error }}</div>
-      <button class="btn-dota" (click)="goToHome()">Go to Home</button>
-    </div>
+    @if (error) {
+      <div class="error-section">
+        <div class="error-message">{{ error }}</div>
+        <button class="btn-dota" (click)="goToHome()">Go to Home</button>
+      </div>
+    }
 
-    <div *ngIf="!loading && !error && registration" class="registration-details">
+    @if (!loading && !error && registration) {
+      <div class="registration-details">
       <!-- Header Section -->
       <div class="status-header">
         <h1 class="status-title">Registration Status</h1>
@@ -23,24 +28,27 @@
         </div>
       </div>
 
-      <!-- Admin Notes (if rejected or has notes) -->
-      <div 
-        *ngIf="registration.admin_notes" 
-        class="admin-notes card-dota"
-        [class.rejected]="registration.registration_status === 'rejected'"
-      >
-        <h3>Admin Notes</h3>
-        <p>{{ registration.admin_notes }}</p>
-      </div>
+        <!-- Admin Notes (if rejected or has notes) -->
+        @if (registration.admin_notes) {
+          <div 
+            class="admin-notes card-dota"
+            [class.rejected]="registration.registration_status === 'rejected'"
+          >
+            <h3>Admin Notes</h3>
+            <p>{{ registration.admin_notes }}</p>
+          </div>
+        }
 
-      <!-- Profile Image -->
-      <div class="profile-section" *ngIf="registration.profile_image_url">
-        <img 
-          [src]="registration.profile_image_url" 
-          alt="Profile" 
-          class="profile-image"
-        />
-      </div>
+        <!-- Profile Image -->
+        @if (registration.profile_image_url) {
+          <div class="profile-section">
+            <img 
+              [src]="registration.profile_image_url" 
+              alt="Profile" 
+              class="profile-image"
+            />
+          </div>
+        }
 
       <!-- Registration Details Grid -->
       <div class="details-grid">
@@ -54,27 +62,36 @@
           <div class="detail-value">{{ registration.email }}</div>
         </div>
 
-        <div class="detail-item" *ngIf="registration.phone_number">
-          <label class="detail-label">Phone Number</label>
-          <div class="detail-value">{{ registration.phone_number }}</div>
-        </div>
+        @if (registration.phone_number) {
+          <div class="detail-item">
+            <label class="detail-label">Phone Number</label>
+            <div class="detail-value">{{ registration.phone_number }}</div>
+          </div>
+        }
 
-        <div class="detail-item" *ngIf="registration.in_game_name">
-          <label class="detail-label">In-Game Name</label>
-          <div class="detail-value">{{ registration.in_game_name }}</div>
-        </div>
+        @if (registration.in_game_name) {
+          <div class="detail-item">
+            <label class="detail-label">In-Game Name</label>
+            <div class="detail-value">{{ registration.in_game_name }}</div>
+          </div>
+        }
 
-        <div class="detail-item" *ngIf="registration.dota2_friend_id">
-          <label class="detail-label">Dota 2 Friend ID</label>
-          <div class="detail-value">{{ registration.dota2_friend_id }}</div>
-        </div>
+        @if (registration.dota2_friend_id) {
+          <div class="detail-item">
+            <label class="detail-label">Dota 2 Friend ID</label>
+            <div class="detail-value">{{ registration.dota2_friend_id }}</div>
+          </div>
+        }
 
-        <div class="detail-item" *ngIf="registration.rank_and_mmr">
-          <label class="detail-label">Rank & MMR</label>
-          <div class="detail-value">{{ registration.rank_and_mmr }}</div>
-        </div>
+        @if (registration.rank_and_mmr) {
+          <div class="detail-item">
+            <label class="detail-label">Rank & MMR</label>
+            <div class="detail-value">{{ registration.rank_and_mmr }}</div>
+          </div>
+        }
 
-        <div class="detail-item" *ngIf="registration.steam_profile_link">
+        @if (registration.steam_profile_link) {
+          <div class="detail-item">
           <label class="detail-label">Steam Profile</label>
           <div class="detail-value">
             <a 
@@ -94,39 +111,46 @@
             </span>
           </div>
         </div>
+        }
 
-        <div class="detail-item" *ngIf="registration.dotabuff_profile_link">
-          <label class="detail-label">Dotabuff Profile</label>
-          <div class="detail-value">
-            <a 
-              [href]="registration.dotabuff_profile_link" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              class="external-link"
-            >
-              {{ registration.dotabuff_profile_link }}
-            </a>
+        @if (registration.dotabuff_profile_link) {
+          <div class="detail-item">
+            <label class="detail-label">Dotabuff Profile</label>
+            <div class="detail-value">
+              <a 
+                [href]="registration.dotabuff_profile_link" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="external-link"
+              >
+                {{ registration.dotabuff_profile_link }}
+              </a>
+            </div>
           </div>
-        </div>
+        }
 
-        <div class="detail-item" *ngIf="registration.discord_id">
-          <label class="detail-label">Discord ID</label>
-          <div class="detail-value">
-            {{ registration.discord_id }}
-            <span 
-              class="verification-badge" 
-              [class.verified]="registration.discord_verified"
-              [class.unverified]="!registration.discord_verified"
-            >
-              {{ registration.discord_verified ? '✓ Verified' : '✗ Not Verified' }}
-            </span>
+        @if (registration.discord_id) {
+          <div class="detail-item">
+            <label class="detail-label">Discord ID</label>
+            <div class="detail-value">
+              {{ registration.discord_id }}
+              <span 
+                class="verification-badge" 
+                [class.verified]="registration.discord_verified"
+                [class.unverified]="!registration.discord_verified"
+              >
+                {{ registration.discord_verified ? '✓ Verified' : '✗ Not Verified' }}
+              </span>
+            </div>
           </div>
-        </div>
+        }
 
-        <div class="detail-item" *ngIf="registration.upi_id">
-          <label class="detail-label">UPI ID</label>
-          <div class="detail-value">{{ registration.upi_id }}</div>
-        </div>
+        @if (registration.upi_id) {
+          <div class="detail-item">
+            <label class="detail-label">UPI ID</label>
+            <div class="detail-value">{{ registration.upi_id }}</div>
+          </div>
+        }
 
         <div class="detail-item">
           <label class="detail-label">Registration Date</label>
@@ -138,66 +162,67 @@
           <div class="detail-value">{{ formatDate(registration.updated_at) }}</div>
         </div>
 
-        <div class="detail-item" *ngIf="registration.proof_of_payment_url">
-          <label class="detail-label">Proof of Payment</label>
-          <div class="detail-value">
-            <a 
-              [href]="registration.proof_of_payment_url" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              class="btn-outline btn-sm"
-            >
-              View Payment Proof
-            </a>
+        @if (registration.proof_of_payment_url) {
+          <div class="detail-item">
+            <label class="detail-label">Proof of Payment</label>
+            <div class="detail-value">
+              <a 
+                [href]="registration.proof_of_payment_url" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="btn-dota btn-sm"
+              >
+                View Payment Proof
+              </a>
+            </div>
           </div>
-        </div>
+        }
       </div>
 
-      <!-- Action Buttons -->
-      <div class="action-buttons">
-        <button *ngIf="canEditRegistration()" class="btn-dota" (click)="editRegistration()">
-          Edit Registration
-        </button>
-        <button class="btn-outline" (click)="goToHome()">
-          Go to Home
-        </button>
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+          @if (canEditRegistration()) {
+            <button class="btn-dota" (click)="editRegistration()">
+              Edit Registration
+            </button>
+          }
+          <button class="btn-dota" (click)="goToHome()">
+            Go to Home
+          </button>
+        </div>
+
+        <!-- Status Messages -->
+        <div class="status-messages">
+          @if (registration.registration_status === 'pending') {
+            <div class="info-message card-dota">
+              <h3>⏳ Your registration is under review</h3>
+              <p>We're reviewing your registration. You'll be notified once it's approved. Make sure your Steam profile is public and you've joined our Discord server!</p>
+            </div>
+          }
+
+          @if (registration.registration_status === 'approved') {
+            <div class="success-message card-dota">
+              <h3>🎉 Registration Approved!</h3>
+              <p>Congratulations! Your registration has been approved. You're all set to participate in SubWars 5!</p>
+            </div>
+          }
+
+          @if (registration.registration_status === 'rejected') {
+            <div class="error-message card-dota">
+              <h3>❌ Registration Rejected</h3>
+              <p>Unfortunately, your registration could not be approved. Please check the admin notes above for details and edit your registration if needed.</p>
+            </div>
+          }
+
+          @if (registration.registration_status === 'payment_pending') {
+            <div class="warning-message card-dota">
+              <h3>💰 Payment Pending</h3>
+              <p>We're waiting for your payment to be verified. Please ensure you've uploaded proof of payment. We'll review it and update your status shortly.</p>
+            </div>
+          }
+        </div>
       </div>
-
-      <!-- Status Messages -->
-      <div class="status-messages">
-        <div 
-          *ngIf="registration.registration_status === 'pending'" 
-          class="info-message card-dota"
-        >
-          <h3>⏳ Your registration is under review</h3>
-          <p>We're reviewing your registration. You'll be notified once it's approved. Make sure your Steam profile is public and you've joined our Discord server!</p>
-        </div>
-
-        <div 
-          *ngIf="registration.registration_status === 'approved'" 
-          class="success-message card-dota"
-        >
-          <h3>🎉 Registration Approved!</h3>
-          <p>Congratulations! Your registration has been approved. You're all set to participate in SubWars 5!</p>
-        </div>
-
-        <div 
-          *ngIf="registration.registration_status === 'rejected'" 
-          class="error-message card-dota"
-        >
-          <h3>❌ Registration Rejected</h3>
-          <p>Unfortunately, your registration could not be approved. Please check the admin notes above for details and edit your registration if needed.</p>
-        </div>
-
-        <div 
-          *ngIf="registration.registration_status === 'payment_pending'" 
-          class="warning-message card-dota"
-        >
-          <h3>💰 Payment Pending</h3>
-          <p>We're waiting for your payment to be verified. Please ensure you've uploaded proof of payment. We'll review it and update your status shortly.</p>
-        </div>
-      </div>
-    </div>
+    }
   </div>
 </div>
 

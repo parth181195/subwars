@@ -1,35 +1,54 @@
 <div class="home-container">
   <!-- Hero Section -->
   <section class="hero-section">
+    <video class="hero-video" autoplay loop muted playsinline poster="https://cdn.steamstatic.com/apps/dota2/images/dota_react/kez/kez_header_loop_poster.png">
+      <source src="https://cdn.steamstatic.com/apps/dota2/videos/dota_react/kez/kez_header_loop.webm" type="video/webm">
+    </video>
     <div class="hero-background">
-      <div class="hero-particles"></div>
-      <div class="trophy-glow"></div>
     </div>
     
     <div class="container hero-content">
-      <div class="hero-badge">
-        <span class="badge-icon">+</span>
-        <span>SubWars 5 Tournament - December 2025</span>
+      <div class="hero-title-wrapper">
+        <h1 class="hero-title">SubWars 5</h1>
       </div>
       
-      <h1 class="hero-title">SubWars 5</h1>
-      <p class="hero-subtitle">
-        Dota 2 Community Tournament - December 2025
-      </p>
-      <p class="hero-description">
-        <strong style="color: var(--accent-green);">Anyone from the community can participate!</strong> SubWars 5 is the premier Dota 2 community tournament bringing together players and fans for an epic competition. 
-        Watch the action live and join the audience engagement quiz with exciting giveaways throughout the stream!
-      </p>
+      <div class="hero-attributes">
+        <span class="hero-attribute">COMMUNITY</span>
+        <span class="hero-attribute">TOURNAMENT</span>
+        <span class="hero-attribute">QUIZ</span>
+        <span class="hero-attribute">GIVEAWAYS</span>
+      </div>
+
+      <div class="hero-description-wrapper">
+        <p class="hero-description">
+          SubWars 5 brings together players and fans for an epic Dota 2 community tournament. 
+          Anyone from the community can participate! Watch high-level gameplay, experience intense matches, 
+          and join the audience engagement quiz with exciting giveaways throughout the stream.
+        </p>
+        <p class="hero-description">
+          Strategic gameplay meets community celebration. Test your Dota 2 knowledge in the voice line quiz, 
+          compete on the leaderboard, and win exclusive rewards during the tournament stream.
+        </p>
+      </div>
       
       <div class="hero-cta">
+        @if (!isAuthenticated) {
+          <button class="btn-dota btn-large" (click)="signIn()">
+            Sign Up to Participate
+          </button>
+        }
+        @if (isAuthenticated && !isRegistered) {
+          <button class="btn-dota btn-large" (click)="goToRegistration()">
+            Register
+          </button>
+        }
+        @if (isAuthenticated && isRegistered) {
+          <button class="btn-dota btn-large" (click)="goToRegistrationStatus()">
+            Registration Status
+          </button>
+        }
         <button class="btn-dota btn-large" (click)="navigateToQuizInfo()">
           Learn About Quiz
-        </button>
-        <button *ngIf="isAuthenticated && firstQuizId" class="btn-outline btn-large" (click)="joinQuiz(firstQuizId)">
-          Join Quiz Now
-        </button>
-        <button *ngIf="!isAuthenticated" class="btn-outline btn-large" (click)="signIn()">
-          Sign In to Participate
         </button>
       </div>
     </div>
@@ -37,22 +56,17 @@
 
   <!-- Tournament Info Section -->
   <section id="tournament" class="features-section">
+    <div class="features-gradient-bottom"></div>
     <div class="container">
-      <div class="section-badge">
-        <span class="badge-icon">+</span>
-        <span>December 2025</span>
-      </div>
-      
       <h2 class="section-title">SubWars 5 Dota 2 Tournament</h2>
       <p class="section-subtitle">
-        <strong style="color: var(--accent-green);">Open to Everyone!</strong> Join us for the biggest Dota 2 community tournament of the year! 
+        <strong style="background: linear-gradient(135deg, #66c0f4 0%, #cdbe91 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Open to Everyone!</strong> Join us for the biggest Dota 2 community tournament of the year! 
         Anyone from the community can participate. Watch top teams compete, experience epic matches, 
         and participate in audience engagement activities throughout the stream.
       </p>
       
       <div class="features-grid">
         <div class="feature-card">
-          <div class="feature-number">1</div>
           <div class="feature-icon">⚔️</div>
           <h3 class="feature-title">Tournament Matches</h3>
           <p class="feature-description">
@@ -62,7 +76,6 @@
         </div>
         
         <div class="feature-card">
-          <div class="feature-number">2</div>
           <div class="feature-icon">📺</div>
           <h3 class="feature-title">Live Stream</h3>
           <p class="feature-description">
@@ -72,7 +85,6 @@
         </div>
         
         <div class="feature-card">
-          <div class="feature-number">3</div>
           <div class="feature-icon">🎮</div>
           <h3 class="feature-title">Audience Quiz</h3>
           <p class="feature-description">
@@ -84,68 +96,13 @@
     </div>
   </section>
 
-  <!-- Quick Quiz Access Section -->
-  <section class="quizzes-section" *ngIf="isAuthenticated">
-    <div class="container">
-      <h2 class="section-title">Join the Quiz</h2>
-      <p class="section-subtitle" style="margin-bottom: 40px;">
-        Ready to test your Dota 2 knowledge? Join the audience quiz during the SubWars 5 tournament stream!
-      </p>
-      
-      <div class="home-content" *ngIf="loading">
-        <div class="loading">Loading quizzes...</div>
-      </div>
-      
-      <div class="home-content" *ngIf="!loading && activeQuizzes.length === 0">
-        <div class="no-quizzes">
-          <div class="card-dota">
-            <h3>Quiz Coming Soon</h3>
-            <p>The quiz will be available during the SubWars 5 tournament stream. Check back when the event starts!</p>
-            <button class="btn-dota" (click)="navigateToQuizInfo()" style="margin-top: 20px;">
-              Learn About the Quiz
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <div class="quizzes-grid" *ngIf="!loading && activeQuizzes.length > 0">
-        <div *ngFor="let quiz of activeQuizzes" class="card-dota quiz-card">
-          <h3 class="quiz-card-title">{{ quiz.name }}</h3>
-          <p class="quiz-card-description">{{ quiz.description }}</p>
-          <div class="quiz-card-actions">
-            <button class="btn-dota" (click)="joinQuiz(quiz.id)">
-              Join Quiz
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="registration-prompt" *ngIf="!isRegistered" style="margin-top: 40px;">
-        <div class="card-dota">
-          <h3>Want to Participate?</h3>
-          <p>
-            Registration is required to submit answers, appear on the leaderboard, 
-            and be eligible for giveaways. Sign in and register to get started!
-          </p>
-          <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
-            <button class="btn-dota" (click)="signIn()" *ngIf="!isAuthenticated">
-              Sign In
-            </button>
-            <button class="btn-dota" (click)="goToRegistration()" *ngIf="isAuthenticated">
-              Register Now
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- How to Participate Section -->
   <section class="how-to-participate-section">
+    <div class="how-to-gradient-bottom"></div>
     <div class="container">
       <h2 class="section-title">How to Participate in SubWars 5</h2>
       <p class="section-subtitle">
-        <strong style="color: var(--accent-green);">Anyone from the community can join!</strong> Follow these simple steps to become part of SubWars 5.
+        <strong style="background: linear-gradient(135deg, #66c0f4 0%, #cdbe91 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Anyone from the community can join!</strong> Follow these simple steps to become part of SubWars 5.
       </p>
       
       <div class="steps-grid">
@@ -157,9 +114,11 @@
             Click "Sign In to Participate" and sign in with your Google account. 
             This is the first step to join the SubWars 5 community tournament.
           </p>
-          <button *ngIf="!isAuthenticated" class="btn-dota btn-sm" (click)="signIn()" style="margin-top: 16px;">
-            Sign In Now
-          </button>
+          @if (!isAuthenticated) {
+            <button class="btn-dota btn-sm" (click)="signIn()" style="margin-top: 16px;">
+              Sign In Now
+            </button>
+          }
         </div>
         
         <div class="step-card">
@@ -180,13 +139,88 @@
             Click "Register" or "Apply to SubWars 5" on your profile page to access the registration form. 
             Fill in your player details, payment information, and submit to become part of the tournament!
           </p>
-          <button *ngIf="isAuthenticated && !isRegistered" class="btn-dota btn-sm" (click)="goToRegistration()" style="margin-top: 16px;">
-            Register Now
-          </button>
+          @if (isAuthenticated && !isRegistered) {
+            <button class="btn-dota btn-sm" (click)="goToRegistration()" style="margin-top: 16px;">
+              Register Now
+            </button>
+          }
         </div>
       </div>
     </div>
   </section>
+
+  <!-- Quick Quiz Access Section -->
+  @if (isAuthenticated) {
+    <section class="quizzes-section">
+      <div class="quizzes-gradient-bottom"></div>
+      <div class="container">
+        <h2 class="section-title">Join the Quiz</h2>
+        <p class="section-subtitle" style="margin-bottom: 40px;">
+          Ready to test your Dota 2 knowledge? Join the audience quiz during the SubWars 5 tournament stream!
+        </p>
+        
+        @if (loading) {
+          <div class="home-content">
+            <div class="loading">Loading quizzes...</div>
+          </div>
+        }
+        
+        @if (!loading && activeQuizzes.length === 0) {
+          <div class="home-content">
+            <div class="no-quizzes">
+              <div class="card-dota">
+                <h3>Quiz Coming Soon</h3>
+                <p>The quiz will be available during the SubWars 5 tournament stream. Check back when the event starts!</p>
+                <button class="btn-dota" (click)="navigateToQuizInfo()" style="margin-top: 20px;">
+                  Learn About the Quiz
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+        
+        @if (!loading && activeQuizzes.length > 0) {
+          <div class="quizzes-grid">
+            @for (quiz of activeQuizzes; track quiz.id) {
+              <div class="card-dota quiz-card">
+                <h3 class="quiz-card-title">{{ quiz.name }}</h3>
+                <p class="quiz-card-description">{{ quiz.description }}</p>
+                <div class="quiz-card-actions">
+                  <button class="btn-dota" (click)="joinQuiz(quiz.id)">
+                    Join Quiz
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        @if (!isRegistered) {
+          <div class="registration-prompt" style="margin-top: 40px;">
+            <div class="card-dota">
+              <h3>Want to Participate?</h3>
+              <p>
+                Registration is required to submit answers, appear on the leaderboard, 
+                and be eligible for giveaways. Sign in and register to get started!
+              </p>
+              <div style="display: flex; gap: 16px; justify-content: center; margin-top: 24px;">
+                @if (!isAuthenticated) {
+                  <button class="btn-dota" (click)="signIn()">
+                    Sign In
+                  </button>
+                }
+                @if (isAuthenticated) {
+                  <button class="btn-dota" (click)="goToRegistration()">
+                    Register Now
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+  }
 
   <!-- Tournament Details Section -->
   <section class="about-section">

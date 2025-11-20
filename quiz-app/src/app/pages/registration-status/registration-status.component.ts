@@ -31,7 +31,7 @@ interface RegistrationDetails {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './registration-status.component.html',
-  styleUrls: ['./registration-status.component.css']
+  styleUrls: ['./registration-status.component.scss']
 })
 export class RegistrationStatusComponent implements OnInit {
   loading = true;

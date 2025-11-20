@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { SupabaseService } from '../../services/supabase.service';
 import { AuthService } from '../../services/auth.service';
 import { RegistrationService } from '../../services/registration.service';
@@ -10,15 +11,16 @@ import { RegistrationService } from '../../services/registration.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './home.component.html',
-  styleUrls: ['./home.component.css']
+  styleUrls: ['./home.component.scss']
 })
-export class HomeComponent implements OnInit {
+export class HomeComponent implements OnInit, OnDestroy {
   activeQuizzes: any[] = [];
   loading = true;
   isAuthenticated = false;
   isRegistered = false;
   registrationStatus: any = null;
   firstQuizId: string | null = null;
+  private authSubscription?: Subscription;
 
   constructor(
     private supabaseService: SupabaseService,
@@ -28,13 +30,33 @@ export class HomeComponent implements OnInit {
   ) {}
 
   async ngOnInit() {
-    this.isAuthenticated = this.authService.isAuthenticated;
+    this.checkAuth();
     
+    // Subscribe to authentication state changes
+    this.authSubscription = this.authService.currentUser$.subscribe(async (user) => {
+      this.isAuthenticated = !!user;
+      if (this.isAuthenticated) {
+        await this.checkRegistrationStatus();
+      } else {
+        this.isRegistered = false;
+        this.registrationStatus = null;
+      }
+    });
+
+    await this.loadActiveQuizzes();
+  }
+
+  ngOnDestroy() {
+    if (this.authSubscription) {
+      this.authSubscription.unsubscribe();
+    }
+  }
+
+  async checkAuth() {
+    this.isAuthenticated = this.authService.isAuthenticated;
     if (this.isAuthenticated) {
       await this.checkRegistrationStatus();
     }
-
-    await this.loadActiveQuizzes();
   }
 
   async checkRegistrationStatus() {
@@ -77,6 +99,10 @@ export class HomeComponent implements OnInit {
       return;
     }
     this.router.navigate(['/registration']);
+  }
+
+  goToRegistrationStatus() {
+    this.router.navigate(['/registration-status']);
   }
 
   signIn() {

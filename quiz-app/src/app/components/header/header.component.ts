@@ -9,7 +9,7 @@ import { RegistrationService } from '../../services/registration.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './header.component.html',
-  styleUrls: ['./header.component.css']
+  styleUrls: ['./header.component.scss']
 })
 export class HeaderComponent implements OnInit {
   isAuthenticated = false;
@@ -69,6 +69,14 @@ export class HeaderComponent implements OnInit {
 
   goToRegistrationStatus() {
     this.router.navigate(['/registration-status']);
+  }
+
+  goToProfile() {
+    if (this.isRegistered) {
+      this.router.navigate(['/registration-status']);
+    } else {
+      this.router.navigate(['/registration']);
+    }
   }
 
   navigateTo(route: string) {

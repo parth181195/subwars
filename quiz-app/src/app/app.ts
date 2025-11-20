@@ -6,7 +6,7 @@ import { FooterComponent } from './components/footer/footer.component';
   selector: 'app-root',
   standalone: false,
   templateUrl: './app.html',
-  styleUrl: './app.css',
+  styleUrl: './app.scss',
 })
 export class App {
   protected title = 'quiz-app';

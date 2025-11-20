@@ -13,22 +13,21 @@
     </nav>
 
     <div class="header-actions">
-      <div *ngIf="isAuthenticated" class="user-menu">
-        <span class="user-email">{{ userEmail }}</span>
-        <button *ngIf="isRegistered" class="btn-outline btn-sm" (click)="goToRegistrationStatus()">
-          Registration Status
-        </button>
-        <button *ngIf="!isRegistered" class="btn-outline btn-sm" (click)="goToRegistration()">
-          Register
-        </button>
-        <button class="btn-dota btn-sm" (click)="signOut()">
-          Sign Out
-        </button>
-      </div>
-      <div *ngIf="!isAuthenticated" class="auth-buttons">
-        <button class="btn-outline btn-sm" (click)="signIn()">Login</button>
-        <button class="btn-dota btn-sm" (click)="signIn()">Get Started</button>
-      </div>
+      @if (isAuthenticated) {
+        <div class="user-menu">
+          <button class="btn-dota btn-sm" (click)="goToProfile()">
+            Profile
+          </button>
+          <button class="btn-dota btn-sm" (click)="signOut()">
+            Sign Out
+          </button>
+        </div>
+      }
+      @if (!isAuthenticated) {
+        <div class="auth-buttons">
+          <button class="btn-dota btn-sm" (click)="signIn()">Login</button>
+        </div>
+      }
     </div>
   </div>
 </header>

@@ -10,7 +10,7 @@ import { SupabaseService } from '../../services/supabase.service';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './quiz-info.component.html',
-  styleUrls: ['./quiz-info.component.css']
+  styleUrls: ['./quiz-info.component.scss']
 })
 export class QuizInfoComponent implements OnInit {
   isAuthenticated = false;
