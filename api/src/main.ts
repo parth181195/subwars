@@ -13,10 +13,18 @@ async function bootstrap() {
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
   
-  // Enable CORS
+  // Enable CORS for both HTTP and WebSocket
+  const corsOrigin = process.env.CORS_ORIGIN || '*';
+  const corsOrigins = corsOrigin === '*' 
+    ? true // Allow all origins
+    : corsOrigin.split(',').map((origin: string) => origin.trim());
+  
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:4200',
-    credentials: true,
+    origin: corsOrigins,
+    credentials: corsOrigin !== '*', // credentials can't be true with origin: '*'
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    exposedHeaders: ['Content-Type'],
   });
 
   // Enable global validation pipe

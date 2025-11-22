@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Quiz, QuizInsert, QuizUpdate, QuizStatus, QuizQuestion, QuizQuestionInsert, QuizQuestionUpdate, QuestionStatus } from '../types/database.types';
+import { Quiz, QuizInsert, QuizUpdate, QuizStatus, QuizQuestion, QuizQuestionInsert, QuizQuestionUpdate, QuestionStatus, QuestionType, Answer } from '../types/database.types';
 
 @Injectable()
 export class QuizService {
@@ -174,13 +174,121 @@ export class QuizService {
     // Deactivate all questions in the quiz
     await this.supabase
       .from('quiz_questions')
-      .update({ is_active: false })
-      .eq('quiz_id', question.quiz_id);
+      .update({ 
+        is_active: false,
+        status: QuestionStatus.PENDING,
+        ended_at: new Date().toISOString(),
+      })
+      .eq('quiz_id', question.quiz_id)
+      .neq('id', questionId);
 
-    // Activate the selected question
+    // Activate the selected question with start time
+    const startedAt = new Date().toISOString();
     return this.updateQuestion(questionId, {
       is_active: true,
       status: QuestionStatus.LIVE,
+      started_at: startedAt,
+      ended_at: null, // Will be set when question ends
+    });
+  }
+
+  async endQuestion(questionId: string): Promise<QuizQuestion> {
+    const question = await this.getQuestionById(questionId);
+    const endedAt = new Date().toISOString();
+    
+    return this.updateQuestion(questionId, {
+      is_active: false,
+      status: QuestionStatus.COMPLETED,
+      ended_at: endedAt,
+    });
+  }
+
+  // Get answers for a question
+  async getQuestionAnswers(questionId: string): Promise<Answer[]> {
+    const { data: answers, error } = await this.supabase
+      .from('answers')
+      .select('*')
+      .eq('question_id', questionId)
+      .order('response_time', { ascending: true }); // Fastest first
+
+    if (error) {
+      throw new BadRequestException(`Failed to get answers: ${error.message}`);
+    }
+
+    return (answers || []) as Answer[];
+  }
+
+  // Get leaderboard for a quiz
+  async getQuizLeaderboard(quizId: string): Promise<Array<{
+    user_id: string;
+    user_name: string;
+    total_score: number;
+    total_answers: number;
+    correct_answers: number;
+    average_response_time: number;
+  }>> {
+    const { data: answers, error } = await this.supabase
+      .from('answers')
+      .select('*, users:user_id(full_name, in_game_name)')
+      .eq('quiz_id', quizId);
+
+    if (error) {
+      throw new BadRequestException(`Failed to get leaderboard: ${error.message}`);
+    }
+
+    // Group by user and calculate stats
+    const userStats = new Map<string, {
+      user_id: string;
+      user_name: string;
+      total_score: number;
+      total_answers: number;
+      correct_answers: number;
+      response_times: number[];
+    }>();
+
+    (answers || []).forEach((answer: any) => {
+      const userId = answer.user_id;
+      const userInfo = answer.users || {};
+      const userName = userInfo.in_game_name || userInfo.full_name || 'Unknown';
+
+      if (!userStats.has(userId)) {
+        userStats.set(userId, {
+          user_id: userId,
+          user_name: userName,
+          total_score: 0,
+          total_answers: 0,
+          correct_answers: 0,
+          response_times: [],
+        });
+      }
+
+      const stats = userStats.get(userId)!;
+      stats.total_score += answer.score || 0;
+      stats.total_answers += 1;
+      if (answer.is_correct) {
+        stats.correct_answers += 1;
+      }
+      if (answer.response_time) {
+        stats.response_times.push(answer.response_time);
+      }
+    });
+
+    // Convert to array and calculate average response time
+    return Array.from(userStats.values()).map(stats => ({
+      user_id: stats.user_id,
+      user_name: stats.user_name,
+      total_score: stats.total_score,
+      total_answers: stats.total_answers,
+      correct_answers: stats.correct_answers,
+      average_response_time: stats.response_times.length > 0
+        ? Math.round(stats.response_times.reduce((a, b) => a + b, 0) / stats.response_times.length)
+        : 0,
+    })).sort((a, b) => {
+      // Sort by score (desc), then by average response time (asc)
+      if (b.total_score !== a.total_score) {
+        return b.total_score - a.total_score;
+      }
+      return a.average_response_time - b.average_response_time;
     });
   }
 

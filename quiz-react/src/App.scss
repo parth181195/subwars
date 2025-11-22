@@ -1,0 +1,21 @@
+// App-level styles if needed
+// Individual page styles are in their respective component folders
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+// Ensure proper layout for pages and footer
+body {
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+

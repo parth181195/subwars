@@ -103,6 +103,42 @@ export class StorageService {
     return url;
   }
 
+  async uploadFile(
+    folderPath: string,
+    file: Express.Multer.File,
+    makePublic = false,
+  ): Promise<string> {
+    const bucket = this.getBucket();
+    const fileExtension = file.originalname.split('.').pop();
+    const fileName = `${Date.now()}-${file.originalname}`;
+    const filePath = `${folderPath}/${fileName}`;
+
+    const fileRef = bucket.file(filePath);
+
+    await fileRef.save(file.buffer, {
+      contentType: file.mimetype,
+      metadata: {
+        metadata: {
+          originalName: file.originalname,
+          uploadType: 'quizQuestion',
+        },
+      },
+    });
+
+    if (makePublic) {
+      await fileRef.makePublic();
+      return fileRef.publicUrl();
+    }
+
+    // Get signed URL (valid for 1 year)
+    const [url] = await fileRef.getSignedUrl({
+      action: 'read',
+      expires: '03-09-2491',
+    });
+
+    return url;
+  }
+
   async deleteFile(filePath: string): Promise<void> {
     const bucket = this.getBucket();
     const fileRef = bucket.file(filePath);

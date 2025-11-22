@@ -1,0 +1,48 @@
+{
+  "cosmetic_mappings": {
+    "Acolyte of the Lost Arts": "Invoker",
+    "Axe Unleashed": "Axe",
+    "Claszian Apostasy": "Faceless Void",
+    "Compass of the Rising Gale Bundle": "Windranger",
+    "Davion of Dragon Hold": "Dragon Knight",
+    "Dread Retribution Bundle": "Drow Ranger",
+    "Exile Unveiled": "Phantom Assassin",
+    "Feast of Abscession": "Pudge",
+    "Mirana of Nightsilver": "Mirana",
+    "Planetfall": "Earthshaker",
+    "The Disciple's Path": "Anti-Mage",
+    "The Disciple%27s Path": "Anti-Mage",
+    "The Eminence of Ristul Bundle": "Queen of Pain",
+    "The One True King Bundle": "Wraith King",
+    "The Toy Butcher": "Pudge",
+    "Voidstorm Asylum": "Razor",
+    "Warlock Golem": "Warlock"
+  },
+  "hero_cosmetic_bundles": {
+    "Invoker": ["Acolyte of the Lost Arts"],
+    "Axe": ["Axe Unleashed"],
+    "Faceless Void": ["Claszian Apostasy"],
+    "Windranger": ["Compass of the Rising Gale Bundle"],
+    "Dragon Knight": ["Davion of Dragon Hold"],
+    "Drow Ranger": ["Dread Retribution Bundle"],
+    "Phantom Assassin": ["Exile Unveiled"],
+    "Pudge": ["Feast of Abscession", "The Toy Butcher"],
+    "Mirana": ["Mirana of Nightsilver"],
+    "Earthshaker": ["Planetfall"],
+    "Anti-Mage": ["The Disciple's Path"],
+    "Queen of Pain": ["The Eminence of Ristul Bundle"],
+    "Wraith King": ["The One True King Bundle"],
+    "Razor": ["Voidstorm Asylum"],
+    "Warlock": ["Warlock Golem"]
+  },
+  "notes": {
+    "Compass of the Rising Gale Bundle": "Windrunner is the old name for Windranger",
+    "Davion of Dragon Hold": "Davion is Dragon Knight's real name, Slyrak is the dragon",
+    "Mirana of Nightsilver": "This is a cosmetic variant of Mirana (Priestess of the Moon)",
+    "The One True King Bundle": "Skeleton King is the old name for Wraith King",
+    "The Disciple%27s Path": "URL-encoded version (apostrophe becomes %27)",
+    "Warlock Golem": "Golem is Warlock's ultimate ability, not a separate hero",
+    "Voidstorm Asylum": "Based on voice file pattern 'Vo_rz_vsa_*', 'rz' likely stands for Razor"
+  }
+}
+

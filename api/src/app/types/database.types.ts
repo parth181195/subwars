@@ -119,24 +119,38 @@ export interface QuizUpdate {
   created_by?: string;
 }
 
+// Question types
+export enum QuestionType {
+  VOICE_LINE = 'voice_line',
+  IMAGE = 'image',
+}
+
 // Quiz Question types
 export interface QuizQuestion {
   id: string;
   quiz_id: string;
-  hero_name: string;
-  voice_line_url: string;
-  voice_line_metadata?: Record<string, any>;
+  question_type: QuestionType;
+  question_content: string; // URL or path for voice line or image
+  question_content_metadata?: Record<string, any>; // Metadata for the content
+  correct_answer_hero: string; // Hero name as the answer
+  answer_image_url?: string; // Image shown after question goes live
+  time_limit_seconds: number; // Time limit in seconds (default 120)
   order_index: number;
   status: QuestionStatus;
   is_active: boolean;
+  started_at?: string; // When question was made live
+  ended_at?: string; // When question ended
   created_at: string;
 }
 
 export interface QuizQuestionInsert {
   quiz_id: string;
-  hero_name: string;
-  voice_line_url: string;
-  voice_line_metadata?: Record<string, any>;
+  question_type: QuestionType;
+  question_content: string;
+  question_content_metadata?: Record<string, any>;
+  correct_answer_hero: string;
+  answer_image_url?: string;
+  time_limit_seconds?: number; // Default 120 if not provided
   order_index: number;
   status?: QuestionStatus;
   is_active?: boolean;
@@ -144,12 +158,17 @@ export interface QuizQuestionInsert {
 
 export interface QuizQuestionUpdate {
   quiz_id?: string;
-  hero_name?: string;
-  voice_line_url?: string;
-  voice_line_metadata?: Record<string, any>;
+  question_type?: QuestionType;
+  question_content?: string;
+  question_content_metadata?: Record<string, any>;
+  correct_answer_hero?: string;
+  answer_image_url?: string;
+  time_limit_seconds?: number;
   order_index?: number;
   status?: QuestionStatus;
   is_active?: boolean;
+  started_at?: string;
+  ended_at?: string;
 }
 
 // Answer types
@@ -158,9 +177,10 @@ export interface Answer {
   user_id: string;
   quiz_id: string;
   question_id: string;
-  answer: string;
+  answer: string; // Hero name answer
   is_correct: boolean;
-  response_time?: number;
+  response_time?: number; // Milliseconds from question start
+  question_started_at?: string; // When the question started (for response time calculation)
   score: number;
   submitted_at: string;
 }

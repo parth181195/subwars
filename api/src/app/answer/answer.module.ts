@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AnswerService } from './answer.service';
 import { SupabaseModule } from '../config/supabase.module';
+import { QuizModule } from '../quiz/quiz.module';
 
 @Module({
-  imports: [SupabaseModule],
+  imports: [SupabaseModule, forwardRef(() => QuizModule)],
   providers: [AnswerService],
   exports: [AnswerService],
 })

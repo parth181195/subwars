@@ -22,12 +22,57 @@ export class AnswerService {
       throw new ConflictException('Answer already submitted for this question');
     }
 
+    // Get the question to check correct answer and calculate score
+    const { data: question, error: questionError } = await this.supabase
+      .from('quiz_questions')
+      .select('correct_answer_hero, started_at, time_limit_seconds')
+      .eq('id', answerInsert.question_id)
+      .single();
+
+    if (questionError || !question) {
+      throw new NotFoundException('Question not found');
+    }
+
+    // Normalize the answer for comparison (case-insensitive, trim whitespace)
+    const userAnswer = answerInsert.answer.trim().toLowerCase();
+    const correctAnswer = question.correct_answer_hero.trim().toLowerCase();
+    const isCorrect = userAnswer === correctAnswer;
+
+    // Calculate response time if question started_at is provided
+    let responseTime: number | undefined;
+    if (question.started_at) {
+      const startTime = new Date(question.started_at).getTime();
+      const submitTime = new Date().getTime();
+      responseTime = Math.max(0, submitTime - startTime); // Ensure non-negative
+    }
+
+    // Calculate score based on speed and correctness
+    // Formula: Faster answers get higher scores
+    // Base score: 100 points for correct answer, 0 for incorrect
+    // Speed bonus: Additional points based on how fast the answer was submitted
+    // Max score: 1000 points (100 base + 900 speed bonus)
+    let score = 0;
+    if (isCorrect && responseTime !== undefined && question.started_at) {
+      const timeLimit = (question.time_limit_seconds || 120) * 1000; // Convert to milliseconds
+      const timeElapsed = Math.min(responseTime, timeLimit);
+      
+      // Calculate score: faster = higher score
+      // Score decreases linearly from 1000 (at 0ms) to 100 (at timeLimit)
+      const speedRatio = 1 - (timeElapsed / timeLimit);
+      const speedBonus = Math.max(0, Math.round(speedRatio * 900)); // Max 900 bonus points
+      score = 100 + speedBonus; // Base 100 + speed bonus
+    } else if (isCorrect) {
+      // If correct but no timing info, give base score
+      score = 100;
+    }
+
     const { data: answer, error } = await this.supabase
       .from('answers')
       .insert({
         ...answerInsert,
-        is_correct: answerInsert.is_correct || false,
-        score: answerInsert.score || 0,
+        is_correct: isCorrect,
+        response_time: responseTime,
+        score: score,
       })
       .select()
       .single();
@@ -35,6 +80,9 @@ export class AnswerService {
     if (error) {
       throw new BadRequestException(`Failed to submit answer: ${error.message}`);
     }
+
+    // Note: WebSocket events are handled in QuizGateway.handleSubmitAnswer()
+    // This service only handles data persistence
 
     return answer as Answer;
   }

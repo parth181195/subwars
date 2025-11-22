@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Inject } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import * as bcrypt from 'bcrypt';
-import { AdminUser, AdminUserInsert, AdminUserUpdate, AdminRole, User, UserUpdate, RegistrationStatus } from '../types/database.types';
+import { AdminUser, AdminUserInsert, AdminUserUpdate, AdminRole } from '../types/database.types';
 
 @Injectable()
 export class AdminService {
@@ -116,95 +116,6 @@ export class AdminService {
     if (error) {
       throw new BadRequestException(`Failed to delete admin user: ${error.message}`);
     }
-  }
-
-  // Registration Management (Admin operations)
-  async getAllRegistrations(status?: RegistrationStatus): Promise<User[]> {
-    let query = this.supabase
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (status) {
-      query = query.eq('registration_status', status);
-    }
-
-    const { data: users, error } = await query;
-
-    if (error) {
-      throw new BadRequestException(`Failed to get registrations: ${error.message}`);
-    }
-
-    return (users || []) as User[];
-  }
-
-  async approveRegistration(userId: string): Promise<User> {
-    return this.updateRegistrationStatus(userId, RegistrationStatus.APPROVED);
-  }
-
-  async rejectRegistration(userId: string, adminNotes?: string): Promise<User> {
-    const updates: UserUpdate = {
-      registration_status: RegistrationStatus.REJECTED,
-    };
-
-    if (adminNotes) {
-      updates.admin_notes = adminNotes;
-    }
-
-    const { data: user, error } = await this.supabase
-      .from('users')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single();
-
-    if (error) {
-      throw new BadRequestException(`Failed to reject registration: ${error.message}`);
-    }
-
-    return user as User;
-  }
-
-  async markPaymentPending(userId: string): Promise<User> {
-    return this.updateRegistrationStatus(userId, RegistrationStatus.PAYMENT_PENDING);
-  }
-
-  async updateRegistrationStatus(userId: string, status: RegistrationStatus, adminNotes?: string): Promise<User> {
-    const updates: UserUpdate = {
-      registration_status: status,
-    };
-
-    if (adminNotes) {
-      updates.admin_notes = adminNotes;
-    }
-
-    const { data: user, error } = await this.supabase
-      .from('users')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single();
-
-    if (error) {
-      throw new BadRequestException(`Failed to update registration status: ${error.message}`);
-    }
-
-    return user as User;
-  }
-
-  async updateRegistrationNotes(userId: string, adminNotes: string): Promise<User> {
-    const { data: user, error } = await this.supabase
-      .from('users')
-      .update({ admin_notes: adminNotes })
-      .eq('id', userId)
-      .select()
-      .single();
-
-    if (error) {
-      throw new BadRequestException(`Failed to update registration notes: ${error.message}`);
-    }
-
-    return user as User;
   }
 }
 

@@ -1,0 +1,220 @@
+.navbar {
+  background-color: #0d1117;
+  border-bottom: 1px solid #30363d;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+
+  .navbar-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    gap: 24px;
+    position: relative;
+  }
+
+  .navbar-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    flex-shrink: 0;
+    gap: 12px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+
+    .logo-text {
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: #66c0f4;
+      text-decoration: none;
+      transition: color 0.2s ease;
+      letter-spacing: 0.5px;
+      text-align: center;
+
+      &:hover {
+        color: #8dd3ff;
+      }
+    }
+
+    .navbar-logo-image {
+      height: 40px;
+      width: auto;
+      object-fit: contain;
+    }
+  }
+
+  .navbar-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: center;
+
+    @media (max-width: 768px) {
+      display: none;
+    }
+  }
+
+  .navbar-link {
+    padding: 8px 16px;
+    color: #8b949e;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+
+    &:hover {
+      color: #f0f6fc;
+      background-color: rgba(102, 192, 244, 0.1);
+    }
+
+    &.active {
+      color: #66c0f4;
+      background-color: rgba(102, 192, 244, 0.15);
+    }
+  }
+
+  .navbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .login-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    height: 36px;
+    background-color: #238636;
+    color: #ffffff;
+    border: 1px solid #2ea043;
+    border-radius: 6px;
+    text-decoration: none;
+    font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    transition: all 0.2s ease;
+    cursor: pointer;
+
+    &:hover {
+      background-color: #2ea043;
+      border-color: #3fb950;
+      color: #ffffff;
+    }
+
+    &:active {
+      background-color: #1a7f37;
+      border-color: #238636;
+    }
+
+    svg {
+      flex-shrink: 0;
+    }
+  }
+
+  .profile-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #f0f6fc;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+
+    &:hover {
+      background-color: rgba(102, 192, 244, 0.1);
+      color: #66c0f4;
+    }
+
+    .profile-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .profile-name {
+      max-width: 150px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      @media (max-width: 768px) {
+        display: none;
+      }
+    }
+  }
+
+  .logout-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    height: 36px;
+    background-color: transparent;
+    color: #8b949e;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    text-decoration: none;
+    font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    transition: all 0.2s ease;
+    cursor: pointer;
+
+    &:hover {
+      background-color: rgba(248, 81, 73, 0.1);
+      border-color: #f85149;
+      color: #ff6b6b;
+    }
+
+    svg {
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 768px) {
+      span {
+        display: none;
+      }
+    }
+  }
+
+  /* Mobile Responsive */
+  @media (max-width: 768px) {
+    .navbar-container {
+      padding: 0 16px;
+      gap: 16px;
+    }
+
+    .navbar-logo .logo-text {
+      font-size: 20px;
+    }
+
+    .login-button {
+      padding: 6px 12px;
+      font-size: 13px;
+
+      span {
+        display: none;
+      }
+    }
+  }
+}
+
