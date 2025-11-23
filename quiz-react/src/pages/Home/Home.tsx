@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@primer/react';
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
+import { io } from 'socket.io-client';
+import { environment } from '../../config/environment';
+import ToastContainer, { useToast } from '../../components/Toast/ToastContainer';
 import teamMember1 from '../../assets/images/1.png';
 import teamMember2 from '../../assets/images/2.png';
 import teamMember3 from '../../assets/images/3.png';
@@ -107,8 +110,63 @@ function TeamMemberCard({ image, name, alt, glowColor }: TeamMemberCardProps) {
 }
 
 export default function Home() {
+  const { toasts, addToast, removeToast } = useToast();
+
+  // Initialize WebSocket connection for notifications
+  useEffect(() => {
+    const socketUrl = environment.apiUrl.replace('/api', '');
+    const newSocket = io(`${socketUrl}/quiz`, {
+      transports: ['websocket', 'polling'],
+    });
+
+    newSocket.on('connect', () => {
+      console.log('Connected to quiz server for notifications');
+    });
+
+    newSocket.on('question-live', (data: { question: { order_index?: number }; timeRemaining: number }) => {
+      addToast({
+        type: 'info',
+        title: 'New Question is Live!',
+        message: `Question #${(data.question?.order_index ?? 0) + 1} is now active. Join the quiz to participate!`,
+        duration: 8000,
+      });
+    });
+
+    newSocket.on('question-winner', (data: { winner: { user_name: string; response_time: number }; questionNumber: number }) => {
+      addToast({
+        type: 'success',
+        title: `Question #${data.questionNumber} Winner!`,
+        message: `🎉 ${data.winner.user_name} answered correctly in ${(data.winner.response_time / 1000).toFixed(2)}s!`,
+        duration: 10000,
+      });
+    });
+
+    newSocket.on('quiz-winners', (data: { winners: Array<{ user_name: string; total_score: number }>; quizName: string }) => {
+      const winnersList = data.winners
+        .map((w, i) => {
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+          return `${medal} ${i + 1}. ${w.user_name} - ${w.total_score} pts`;
+        })
+        .join('\n');
+      addToast({
+        type: 'success',
+        title: `🏆 ${data.quizName} - Top 3 Winners!`,
+        message: winnersList,
+        duration: 15000,
+      });
+    });
+
+    return () => {
+      if (newSocket) {
+        newSocket.disconnect();
+      }
+    };
+  }, [addToast]);
+
   return (
-    <div className="home-page">
+    <>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      <div className="home-page">
       {/* Main Hero Section */}
       <section className="hero-section">
         <video 
@@ -315,5 +373,6 @@ export default function Home() {
         </div>
       </section>
     </div>
+    </>
   );
 }

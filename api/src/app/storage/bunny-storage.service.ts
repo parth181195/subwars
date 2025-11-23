@@ -28,7 +28,9 @@ export class BunnyStorageService {
 
       // Bunny CDN Storage API endpoint
       const hostname = `${this.config.region}.storage.bunnycdn.com`;
-      const apiPath = `/${this.config.storageZone}/${filePath}`;
+      // Encode the file path to handle special characters
+      const encodedPath = filePath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      const apiPath = `/${this.config.storageZone}/${encodedPath}`;
 
       const options = {
         hostname,
@@ -118,7 +120,9 @@ export class BunnyStorageService {
   async deleteFile(filePath: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const hostname = `${this.config.region}.storage.bunnycdn.com`;
-      const apiPath = `/${this.config.storageZone}/${filePath}`;
+      // Encode the file path to handle special characters
+      const encodedPath = filePath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      const apiPath = `/${this.config.storageZone}/${encodedPath}`;
 
       const options = {
         hostname,

@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import Settings from './pages/Settings/Settings';
 import Quizzes from './pages/Quizzes/Quizzes';
 import QuizDetail from './pages/QuizDetail/QuizDetail';
+import Answers from './pages/Answers/Answers';
 
 type User = {
   id: string;
@@ -20,12 +21,19 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const unsubscribe = adminAuthService.subscribe((currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
+      if (isMounted) {
+        setUser(currentUser);
+        setLoading(false);
+      }
     });
 
-    return unsubscribe;
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   if (loading) {
@@ -83,6 +91,15 @@ function App() {
           user ? (
             <DashboardLayout>
               <QuizDetail />
+            </DashboardLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } />
+        <Route path="/quizzes/:id/questions/:questionId/answers" element={
+          user ? (
+            <DashboardLayout>
+              <Answers />
             </DashboardLayout>
           ) : (
             <Navigate to="/login" replace />

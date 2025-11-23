@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Button, IconButton, NavList } from '@primer/react';
 import { 
   HomeIcon, 
   GearIcon, 
@@ -67,27 +68,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
         
         <nav className="sidebar-nav">
-          {navItems.map((item) => {
-            let isActive = false;
-            if (item.route === '/dashboard') {
-              isActive = location.pathname === item.route || location.pathname === '/';
-            } else if (item.route === '/quizzes') {
-              isActive = location.pathname.startsWith('/quizzes');
-            } else {
-              isActive = location.pathname === item.route;
-            }
-            
-            return (
-              <button
-                key={item.route}
-                className={`nav-item ${isActive ? 'active' : ''}`}
-                onClick={() => navigate(item.route)}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                {sidebarOpen && <span className="nav-label">{item.label}</span>}
-              </button>
-            );
-          })}
+          <NavList>
+            {navItems.map((item) => {
+              let isActive = false;
+              if (item.route === '/dashboard') {
+                isActive = location.pathname === item.route || location.pathname === '/';
+              } else if (item.route === '/quizzes') {
+                isActive = location.pathname.startsWith('/quizzes');
+              } else {
+                isActive = location.pathname === item.route;
+              }
+              
+              return (
+                <NavList.Item
+                  key={item.route}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => navigate(item.route)}
+                >
+                  <NavList.LeadingVisual>{item.icon}</NavList.LeadingVisual>
+                  {sidebarOpen && item.label}
+                </NavList.Item>
+              );
+            })}
+          </NavList>
         </nav>
       </aside>
 
@@ -95,9 +98,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="dashboard-main">
         {/* Toolbar */}
         <header className="dashboard-toolbar">
-          <button className="sidebar-toggle" onClick={toggleSidebar}>
-            <ThreeBarsIcon size={20} />
-          </button>
+          <IconButton
+            icon={ThreeBarsIcon}
+            aria-label="Toggle sidebar"
+            onClick={toggleSidebar}
+            variant="invisible"
+          />
           
           <div className="toolbar-spacer"></div>
           
@@ -105,10 +111,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <span className="toolbar-email">{user.email}</span>
           )}
           
-          <button className="logout-button" onClick={handleLogout}>
-            <SignOutIcon size={16} />
-            <span>Logout</span>
-          </button>
+          <Button
+            variant="invisible"
+            onClick={handleLogout}
+            leadingVisual={SignOutIcon}
+          >
+            Logout
+          </Button>
         </header>
 
         {/* Page Content */}

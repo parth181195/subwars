@@ -1,0 +1,57 @@
+.answers-table {
+  width: 100%;
+  overflow-x: auto;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #161b22;
+    border-radius: 0.5rem;
+    overflow: hidden;
+
+    thead {
+      background: #21262d;
+
+      th {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: #f0f6fc;
+        font-size: 0.875rem;
+        border-bottom: 1px solid #30363d;
+      }
+    }
+
+    tbody {
+      tr {
+        border-bottom: 1px solid #30363d;
+        transition: background-color 0.15s ease;
+
+        &:hover {
+          background: #1c2128;
+        }
+
+        &.correct {
+          background: rgba(22, 163, 74, 0.1);
+        }
+
+        &.incorrect {
+          background: rgba(248, 81, 73, 0.1);
+        }
+
+        td {
+          padding: 0.75rem 1rem;
+          color: #f0f6fc;
+          font-size: 0.875rem;
+
+          &.text-center {
+            text-align: center;
+            color: #8b949e;
+            padding: 2rem;
+          }
+        }
+      }
+    }
+  }
+}
+

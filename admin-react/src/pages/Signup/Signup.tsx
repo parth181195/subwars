@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@primer/react';
+import { Button, FormControl, TextInput, Flash } from '@primer/react';
 import { PersonAddIcon } from '@primer/octicons-react';
 import { adminAuthService } from '../../services/auth';
 import { environment } from '../../config/environment';
@@ -74,34 +74,34 @@ export default function SignupPage() {
         </div>
 
         {error && (
-          <div className="error-message">
+          <Flash variant="danger" sx={{ mb: 3 }}>
             {error}
-          </div>
+          </Flash>
         )}
 
         {success && (
-          <div className="success-message">
+          <Flash variant="success" sx={{ mb: 3 }}>
             {success}
-          </div>
+          </Flash>
         )}
 
         <form onSubmit={handleSubmit} className="signup-form">
-          <div className="signup-form-group">
-            <label htmlFor="email">Email</label>
-            <input
+          <FormControl required>
+            <FormControl.Label htmlFor="email">Email</FormControl.Label>
+            <TextInput
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@example.com"
               required
-              className="signup-input"
+              block
             />
-          </div>
+          </FormControl>
 
-          <div className="signup-form-group">
-            <label htmlFor="password">Password</label>
-            <input
+          <FormControl required sx={{ mt: 3 }}>
+            <FormControl.Label htmlFor="password">Password</FormControl.Label>
+            <TextInput
               id="password"
               type="password"
               value={password}
@@ -109,22 +109,22 @@ export default function SignupPage() {
               placeholder="Enter password (min 6 characters)"
               required
               minLength={6}
-              className="signup-input"
+              block
             />
-          </div>
+          </FormControl>
 
-          <div className="signup-form-group">
-            <label htmlFor="confirmPassword">Confirm Password</label>
-            <input
+          <FormControl required sx={{ mt: 3 }}>
+            <FormControl.Label htmlFor="confirmPassword">Confirm Password</FormControl.Label>
+            <TextInput
               id="confirmPassword"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm your password"
               required
-              className="signup-input"
+              block
             />
-          </div>
+          </FormControl>
 
           <Button
             type="submit"

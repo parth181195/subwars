@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Button, Dialog, FormControl, TextInput, Label } from '@primer/react';
 import './Quizzes.scss';
 
 interface Quiz {
@@ -42,8 +43,7 @@ export default function Quizzes() {
     }
   };
 
-  const handleCreateQuiz = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateQuiz = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/quizzes`, {
         method: 'POST',
@@ -96,12 +96,12 @@ export default function Quizzes() {
     <div className="quizzes-page">
       <div className="page-header">
         <h1 className="page-title">Quizzes</h1>
-        <button
-          className="btn-primary"
+        <Button
+          variant="primary"
           onClick={() => setShowCreateModal(true)}
         >
           + Create New Quiz
-        </button>
+        </Button>
       </div>
 
       {quizzes.length === 0 ? (
@@ -118,9 +118,9 @@ export default function Quizzes() {
             >
               <div className="quiz-card-header">
                 <h3 className="quiz-name">{quiz.name}</h3>
-                <span className={`status-badge ${getStatusColor(quiz.status)}`}>
+                <Label variant={quiz.status === 'live' ? 'success' : quiz.status === 'completed' ? 'secondary' : quiz.status === 'paused' ? 'attention' : 'secondary'}>
                   {quiz.status}
-                </span>
+                </Label>
               </div>
               {quiz.description && (
                 <p className="quiz-description">{quiz.description}</p>
@@ -136,44 +136,57 @@ export default function Quizzes() {
       )}
 
       {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Create New Quiz</h2>
-            <form onSubmit={handleCreateQuiz}>
-              <div className="form-group">
-                <label htmlFor="quiz-name">Quiz Name *</label>
-                <input
+        <Dialog
+          title="Create New Quiz"
+          onClose={() => setShowCreateModal(false)}
+          renderBody={() => (
+            <>
+              <FormControl required>
+                <FormControl.Label htmlFor="quiz-name">Quiz Name *</FormControl.Label>
+                <TextInput
                   id="quiz-name"
-                  type="text"
                   value={newQuiz.name}
                   onChange={(e) => setNewQuiz({ ...newQuiz, name: e.target.value })}
                   required
+                  block
                 />
-              </div>
-              <div className="form-group">
-                <label htmlFor="quiz-description">Description</label>
+              </FormControl>
+              <FormControl sx={{ mt: 3 }}>
+                <FormControl.Label htmlFor="quiz-description">Description</FormControl.Label>
                 <textarea
                   id="quiz-description"
                   value={newQuiz.description}
                   onChange={(e) => setNewQuiz({ ...newQuiz, description: e.target.value })}
                   rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '14px',
+                    lineHeight: '20px',
+                    color: 'var(--color-fg-default)',
+                    backgroundColor: 'var(--color-input-bg)',
+                    border: '1px solid var(--color-border-default)',
+                    borderRadius: '6px',
+                    fontFamily: 'inherit',
+                    resize: 'vertical'
+                  }}
                 />
-              </div>
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setShowCreateModal(false)}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Create Quiz
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+              </FormControl>
+            </>
+          )}
+          footerButtons={[
+            {
+              buttonType: 'secondary',
+              content: 'Cancel',
+              onClick: () => setShowCreateModal(false),
+            },
+            {
+              buttonType: 'primary',
+              content: 'Create Quiz',
+              onClick: handleCreateQuiz,
+            },
+          ]}
+        />
       )}
     </div>
   );

@@ -8,16 +8,18 @@ import {
   Param,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   Query,
   BadRequestException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { QuizService } from '../quiz/quiz.service';
 import { QuizGateway } from '../quiz/quiz.gateway';
 import { StorageService } from '../storage/storage.service';
+import { BunnyStorageService } from '../storage/bunny-storage.service';
 import {
   QuizInsert,
   QuizUpdate,
@@ -36,12 +38,24 @@ export class AdminQuizController {
     @Inject(forwardRef(() => QuizGateway))
     private readonly quizGateway: QuizGateway,
     private readonly storageService: StorageService,
+    private readonly bunnyStorageService: BunnyStorageService,
   ) {}
 
   // Quiz Management
   @Get()
   async getAllQuizzes() {
     return this.quizService.getAllQuizzes();
+  }
+
+  // Question Management - More specific routes must come before parameterized routes
+  @Get('questions/:questionId')
+  async getQuestionById(@Param('questionId') questionId: string) {
+    return this.quizService.getQuestionById(questionId);
+  }
+
+  @Get('questions/:questionId/answers')
+  async getQuestionAnswers(@Param('questionId') questionId: string) {
+    return this.quizService.getQuestionAnswers(questionId);
   }
 
   @Get(':id')
@@ -56,7 +70,14 @@ export class AdminQuizController {
 
   @Put(':id')
   async updateQuiz(@Param('id') id: string, @Body() quizUpdate: QuizUpdate) {
-    return this.quizService.updateQuiz(id, quizUpdate);
+    const quiz = await this.quizService.updateQuiz(id, quizUpdate);
+    
+    // If quiz is marked as completed, announce top 3 winners
+    if (quizUpdate.status === 'completed') {
+      await this.quizGateway.announceQuizWinners(id);
+    }
+    
+    return quiz;
   }
 
   @Delete(':id')
@@ -72,12 +93,19 @@ export class AdminQuizController {
   }
 
   @Post(':id/questions')
-  @UseInterceptors(FileInterceptor('question_file'))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'question_file', maxCount: 1 },
+      { name: 'answer_file', maxCount: 1 },
+    ])
+  )
   async createQuestion(
     @Param('id') quizId: string,
     @Body() body: any,
-    @UploadedFile() questionFile?: Express.Multer.File,
+    @UploadedFiles() files?: { question_file?: Express.Multer.File[]; answer_file?: Express.Multer.File[] },
   ) {
+    const questionFile = files?.question_file?.[0];
+    const answerFile = files?.answer_file?.[0];
     let questionContent = '';
     let questionContentMetadata: Record<string, any> = {};
 
@@ -88,11 +116,12 @@ export class AdminQuizController {
 
     // Handle image upload or voice line URL
     if (questionType === QuestionType.IMAGE && questionFile) {
-      // Upload image to storage
-      questionContent = await this.storageService.uploadFile(
-        `quiz-questions/${quizId}`,
-        questionFile,
-      );
+      // Upload image to Bunny CDN
+      // Sanitize filename: remove/replace special characters
+      const sanitizedOriginalName = questionFile.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileName = `${Date.now()}-${sanitizedOriginalName}`;
+      const filePath = `pasoll/subwars5/question/images/${fileName}`;
+      questionContent = await this.bunnyStorageService.uploadFileFromMulter(filePath, questionFile);
       questionContentMetadata = {
         originalName: questionFile.originalname,
         mimeType: questionFile.mimetype,
@@ -113,10 +142,17 @@ export class AdminQuizController {
       throw new BadRequestException('Question content is required. Provide either a file upload or content URL.');
     }
 
-    // Handle answer image URL (can be provided as URL string)
-    // For now, we accept URL strings. File uploads for answer images can be handled
-    // via a separate endpoint or by pre-uploading and providing the URL.
-    const answerImageUrl: string | undefined = body.answer_image_url || undefined;
+    // Handle answer image - can be provided as file upload or URL string
+    let answerImageUrl: string | undefined = body.answer_image_url || undefined;
+    
+    if (answerFile) {
+      // Upload answer image to Bunny CDN
+      // Sanitize filename: remove/replace special characters
+      const sanitizedOriginalName = answerFile.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileName = `${Date.now()}-${sanitizedOriginalName}`;
+      const filePath = `pasoll/subwars5/question/answers/${fileName}`;
+      answerImageUrl = await this.bunnyStorageService.uploadFileFromMulter(filePath, answerFile);
+    }
 
     const questionInsert: QuizQuestionInsert = {
       quiz_id: quizId,
@@ -135,12 +171,19 @@ export class AdminQuizController {
   }
 
   @Put('questions/:questionId')
-  @UseInterceptors(FileInterceptor('question_file'))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'question_file', maxCount: 1 },
+      { name: 'answer_file', maxCount: 1 },
+    ])
+  )
   async updateQuestion(
     @Param('questionId') questionId: string,
     @Body() body: any,
-    @UploadedFile() questionFile?: Express.Multer.File,
+    @UploadedFiles() files?: { question_file?: Express.Multer.File[]; answer_file?: Express.Multer.File[] },
   ) {
+    const questionFile = files?.question_file?.[0];
+    const answerFile = files?.answer_file?.[0];
     const questionUpdate: QuizQuestionUpdate = {};
 
     if (body.question_type) {
@@ -149,19 +192,25 @@ export class AdminQuizController {
     if (body.correct_answer_hero) questionUpdate.correct_answer_hero = body.correct_answer_hero;
     if (body.time_limit_seconds) questionUpdate.time_limit_seconds = parseInt(body.time_limit_seconds, 10);
     if (body.order_index) questionUpdate.order_index = parseInt(body.order_index, 10);
-    if (body.answer_image_url) questionUpdate.answer_image_url = body.answer_image_url;
 
-    // Handle file upload if provided
+    // Handle question content
     if (questionFile) {
-      const question = await this.quizService.getQuestionById(questionId);
-      questionUpdate.question_content = await this.storageService.uploadFile(
-        `quiz-questions/${question.quiz_id}`,
-        questionFile,
-      );
+      // Upload question image to Bunny CDN
+      // Sanitize filename: remove/replace special characters
+      const sanitizedOriginalName = questionFile.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileName = `${Date.now()}-${sanitizedOriginalName}`;
+      const filePath = `pasoll/subwars5/question/images/${fileName}`;
+      questionUpdate.question_content = await this.bunnyStorageService.uploadFileFromMulter(filePath, questionFile);
       questionUpdate.question_content_metadata = {
         originalName: questionFile.originalname,
         mimeType: questionFile.mimetype,
         size: questionFile.size,
+      };
+    } else if (body.voice_line_url) {
+      // Handle voice line URL
+      questionUpdate.question_content = body.voice_line_url;
+      questionUpdate.question_content_metadata = {
+        voiceLineUrl: body.voice_line_url,
       };
     } else if (body.question_content) {
       questionUpdate.question_content = body.question_content;
@@ -170,6 +219,18 @@ export class AdminQuizController {
           ? JSON.parse(body.question_content_metadata)
           : body.question_content_metadata;
       }
+    }
+
+    // Handle answer file upload
+    if (answerFile) {
+      // Upload answer image to Bunny CDN
+      // Sanitize filename: remove/replace special characters
+      const sanitizedOriginalName = answerFile.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileName = `${Date.now()}-${sanitizedOriginalName}`;
+      const filePath = `pasoll/subwars5/question/answers/${fileName}`;
+      questionUpdate.answer_image_url = await this.bunnyStorageService.uploadFileFromMulter(filePath, answerFile);
+    } else if (body.answer_image_url) {
+      questionUpdate.answer_image_url = body.answer_image_url;
     }
 
     return this.quizService.updateQuestion(questionId, questionUpdate);
@@ -203,11 +264,6 @@ export class AdminQuizController {
   }
 
   // Answers and Leaderboard
-  @Get('questions/:questionId/answers')
-  async getQuestionAnswers(@Param('questionId') questionId: string) {
-    return this.quizService.getQuestionAnswers(questionId);
-  }
-
   @Get(':id/leaderboard')
   async getQuizLeaderboard(@Param('id') quizId: string) {
     return this.quizService.getQuizLeaderboard(quizId);

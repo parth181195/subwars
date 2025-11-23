@@ -32,14 +32,12 @@ export default function Navbar() {
     { path: '/faq', label: 'FAQ' },
     // Hidden for now
     // { path: '/', label: 'Home' },
-    // { path: '/quiz-info', label: 'Quiz Info' },
   ];
 
-  // Hidden for now
   // Add Quiz link if user is logged in
-  // if (user) {
-  //   navLinks.push({ path: '/quiz', label: 'Quiz' });
-  // }
+  if (user) {
+    navLinks.push({ path: '/quiz', label: 'Quiz' });
+  }
 
   return (
     <nav className="navbar">

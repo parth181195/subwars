@@ -53,7 +53,7 @@ function App() {
       <Navbar />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/quiz-info" element={<QuizInfo />} />
+        <Route path="/quiz-info" element={<ProtectedRoute><Quiz /></ProtectedRoute>} />
         <Route path="/faq" element={<FAQ />} />
         <Route path="/format" element={<Format />} />
         <Route path="/login" element={<Login />} />

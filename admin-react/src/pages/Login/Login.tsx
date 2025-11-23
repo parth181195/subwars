@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@primer/react';
+import { Button, FormControl, TextInput, Flash } from '@primer/react';
 import { SignInIcon } from '@primer/octicons-react';
 import { adminAuthService } from '../../services/auth';
 import './Login.scss';
@@ -40,37 +40,37 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="error-message">
+          <Flash variant="danger" sx={{ mb: 3 }}>
             {error}
-          </div>
+          </Flash>
         )}
 
         <form onSubmit={handleSubmit} className="login-form">
-          <div className="login-form-group">
-            <label htmlFor="email">Email</label>
-            <input
+          <FormControl required>
+            <FormControl.Label htmlFor="email">Email</FormControl.Label>
+            <TextInput
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@example.com"
               required
-              className="login-input"
+              block
             />
-          </div>
+          </FormControl>
 
-          <div className="login-form-group">
-            <label htmlFor="password">Password</label>
-            <input
+          <FormControl required sx={{ mt: 3 }}>
+            <FormControl.Label htmlFor="password">Password</FormControl.Label>
+            <TextInput
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               required
-              className="login-input"
+              block
             />
-          </div>
+          </FormControl>
 
           <Button
             type="submit"

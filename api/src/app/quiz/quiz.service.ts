@@ -68,6 +68,41 @@ export class QuizService {
   }
 
   async updateQuiz(id: string, quizUpdate: QuizUpdate): Promise<Quiz> {
+    // Get current quiz status before update
+    const { data: currentQuiz } = await this.supabase
+      .from('quizzes')
+      .select('status')
+      .eq('id', id)
+      .single();
+
+    // If status is being changed to draft, end any live questions
+    if (quizUpdate.status === QuizStatus.DRAFT && currentQuiz?.status !== QuizStatus.DRAFT) {
+      // Find all live questions for this quiz
+      const { data: liveQuestions, error: questionsError } = await this.supabase
+        .from('quiz_questions')
+        .select('id')
+        .eq('quiz_id', id)
+        .eq('is_active', true)
+        .eq('status', QuestionStatus.LIVE);
+
+      if (!questionsError && liveQuestions && liveQuestions.length > 0) {
+        const endedAt = new Date().toISOString();
+        // End all live questions
+        const { error: endError } = await this.supabase
+          .from('quiz_questions')
+          .update({
+            is_active: false,
+            status: QuestionStatus.COMPLETED,
+            ended_at: endedAt,
+          })
+          .in('id', liveQuestions.map(q => q.id));
+
+        if (endError) {
+          throw new BadRequestException(`Failed to end live questions: ${endError.message}`);
+        }
+      }
+    }
+
     const { data: quiz, error } = await this.supabase
       .from('quizzes')
       .update(quizUpdate)
@@ -79,7 +114,15 @@ export class QuizService {
       throw new BadRequestException(`Failed to update quiz: ${error.message}`);
     }
 
-    return quiz as Quiz;
+    const updatedQuiz = quiz as Quiz;
+
+    // If quiz is marked as completed, emit top 3 winners announcement
+    if (quizUpdate.status === QuizStatus.COMPLETED) {
+      // This will be handled by the gateway via the controller
+      // We return the quiz so the controller can trigger the announcement
+    }
+
+    return updatedQuiz;
   }
 
   async deleteQuiz(id: string): Promise<void> {
@@ -112,7 +155,7 @@ export class QuizService {
     return question as QuizQuestion;
   }
 
-  async getQuestionById(id: string): Promise<QuizQuestion> {
+  async getQuestionById(id: string): Promise<QuizQuestion | null> {
     const { data: question, error } = await this.supabase
       .from('quiz_questions')
       .select('*')
@@ -120,7 +163,7 @@ export class QuizService {
       .single();
 
     if (error || !question) {
-      throw new NotFoundException(`Question with ID ${id} not found`);
+      return null;
     }
 
     return question as QuizQuestion;
@@ -171,16 +214,57 @@ export class QuizService {
     // First, deactivate all other questions in the same quiz
     const question = await this.getQuestionById(questionId);
     
-    // Deactivate all questions in the quiz
-    await this.supabase
+    if (!question) {
+      throw new NotFoundException(`Question with ID ${questionId} not found`);
+    }
+    
+    // Get the quiz to check its status
+    const { data: quiz, error: quizError } = await this.supabase
+      .from('quizzes')
+      .select('status')
+      .eq('id', question.quiz_id)
+      .single();
+    
+    if (quizError || !quiz) {
+      throw new BadRequestException('Quiz not found');
+    }
+    
+    // Prevent activating questions if quiz is in draft
+    if (quiz.status === QuizStatus.DRAFT) {
+      throw new BadRequestException('Cannot activate questions while the quiz is in draft status. Please set the quiz to live first.');
+    }
+    
+    const endedAt = new Date().toISOString();
+    
+    // Get all currently active questions in the quiz
+    const { data: activeQuestions } = await this.supabase
       .from('quiz_questions')
-      .update({ 
-        is_active: false,
-        status: QuestionStatus.PENDING,
-        ended_at: new Date().toISOString(),
-      })
+      .select('id, status')
       .eq('quiz_id', question.quiz_id)
+      .eq('is_active', true)
       .neq('id', questionId);
+    
+    // Deactivate all active questions in the quiz
+    // If they were live, mark as completed; otherwise keep their current status
+    if (activeQuestions && activeQuestions.length > 0) {
+      for (const activeQuestion of activeQuestions) {
+        const updateData: any = {
+          is_active: false,
+          ended_at: endedAt,
+        };
+        
+        // If the question was live, mark it as completed
+        if (activeQuestion.status === QuestionStatus.LIVE) {
+          updateData.status = QuestionStatus.COMPLETED;
+        }
+        // Otherwise, keep the current status (don't change pending to pending)
+        
+        await this.supabase
+          .from('quiz_questions')
+          .update(updateData)
+          .eq('id', activeQuestion.id);
+      }
+    }
 
     // Activate the selected question with start time
     const startedAt = new Date().toISOString();
@@ -194,6 +278,11 @@ export class QuizService {
 
   async endQuestion(questionId: string): Promise<QuizQuestion> {
     const question = await this.getQuestionById(questionId);
+    
+    if (!question) {
+      throw new NotFoundException(`Question with ID ${questionId} not found`);
+    }
+    
     const endedAt = new Date().toISOString();
     
     return this.updateQuestion(questionId, {
@@ -201,6 +290,59 @@ export class QuizService {
       status: QuestionStatus.COMPLETED,
       ended_at: endedAt,
     });
+  }
+
+  /**
+   * Check for and automatically end questions that have exceeded their time limit
+   * This should be called periodically (e.g., every 5-10 seconds)
+   * Returns array of expired question IDs and quiz IDs
+   */
+  async checkAndEndExpiredQuestions(): Promise<Array<{ id: string; quiz_id: string }>> {
+    try {
+      // Get all currently live questions
+      const { data: liveQuestions, error } = await this.supabase
+        .from('quiz_questions')
+        .select('id, quiz_id, started_at, time_limit_seconds')
+        .eq('is_active', true)
+        .eq('status', QuestionStatus.LIVE);
+
+      if (error || !liveQuestions) {
+        return [];
+      }
+
+      const now = Date.now();
+      const expiredQuestions: Array<{ id: string; quiz_id: string }> = [];
+
+      for (const question of liveQuestions) {
+        if (!question.started_at || !question.time_limit_seconds) {
+          continue;
+        }
+
+        const startedAt = new Date(question.started_at).getTime();
+        const elapsed = Math.floor((now - startedAt) / 1000); // seconds
+        const timeLimit = question.time_limit_seconds;
+
+        if (elapsed >= timeLimit) {
+          expiredQuestions.push({ id: question.id, quiz_id: question.quiz_id });
+        }
+      }
+
+      // End all expired questions and return them for event emission
+      if (expiredQuestions.length > 0) {
+        const endedAt = new Date().toISOString();
+        for (const question of expiredQuestions) {
+          await this.updateQuestion(question.id, {
+            is_active: false,
+            status: QuestionStatus.COMPLETED,
+            ended_at: endedAt,
+          });
+        }
+      }
+
+      return expiredQuestions;
+    } catch (error) {
+      console.error('Error checking for expired questions:', error);
+    }
   }
 
   // Get answers for a question

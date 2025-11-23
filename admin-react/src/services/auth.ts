@@ -12,10 +12,12 @@ class AdminAuthService {
   private currentUser: User | null = null;
   private isAdmin: boolean = false;
   private listeners: Set<(user: User | null) => void> = new Set();
+  private initialized: boolean = false;
+  private initPromise: Promise<void>;
 
   constructor() {
     this.client = createClient(environment.supabase.url, environment.supabase.anonKey);
-    this.init();
+    this.initPromise = this.init();
   }
 
   private async init() {
@@ -24,8 +26,9 @@ class AdminAuthService {
     if (session?.user) {
       this.currentUser = session.user;
       this.isAdmin = await this.checkAdminAccess(session.user.email || '');
-      this.notifyListeners();
     }
+    this.initialized = true;
+    this.notifyListeners();
 
     // Listen for auth changes
     this.client.auth.onAuthStateChange(async (_event, session) => {
@@ -45,8 +48,14 @@ class AdminAuthService {
 
   subscribe(listener: (user: User | null) => void) {
     this.listeners.add(listener);
-    // Immediately notify with current user
-    listener(this.currentUser);
+    // Wait for initialization before notifying
+    if (this.initialized) {
+      listener(this.currentUser);
+    } else {
+      this.initPromise.then(() => {
+        listener(this.currentUser);
+      });
+    }
     // Return unsubscribe function
     return () => {
       this.listeners.delete(listener);

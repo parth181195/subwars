@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button } from '@primer/react';
+import { Button, FormControl, TextInput, Flash, Label, IconButton, Dialog } from '@primer/react';
 import { TrashIcon } from '@primer/octicons-react';
 import { adminAuthService } from '../../services/auth';
 import { environment } from '../../config/environment';
@@ -22,6 +22,7 @@ export default function Settings() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<string | null>(null);
 
   useEffect(() => {
     loadAdminUsers();
@@ -85,21 +86,25 @@ export default function Settings() {
     }
   };
 
+  const [addAdminError, setAddAdminError] = useState('');
+
   const addAdminUser = async () => {
+    setAddAdminError('');
+    
     if (!newAdminEmail || !newAdminEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      alert('Please enter a valid email address');
+      setAddAdminError('Please enter a valid email address');
       return;
     }
 
     const client = adminAuthService.supabaseClient;
     if (!client) {
-      alert('Database connection not available');
+      setAddAdminError('Database connection not available');
       return;
     }
 
     // Check if user is in built-in list
     if (environment.allowedAdminEmails.includes(newAdminEmail)) {
-      alert('This email is already a built-in admin.');
+      setAddAdminError('This email is already a built-in admin.');
       return;
     }
 
@@ -119,7 +124,7 @@ export default function Settings() {
       }
 
       if (existingDbUser) {
-        alert('This email is already an admin in the database.');
+        setAddAdminError('This email is already an admin in the database.');
         setLoading(false);
         return;
       }
@@ -138,23 +143,19 @@ export default function Settings() {
       }
 
       setNewAdminEmail('');
+      setAddAdminError('');
       await loadAdminUsers();
     } catch (error: unknown) {
       const err = error as { message?: string };
-      alert('Failed to add admin user: ' + (err.message || 'Unknown error'));
+      setAddAdminError('Failed to add admin user: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
   };
 
   const removeAdminUser = async (email: string) => {
-    if (!confirm(`Are you sure you want to remove ${email} as an admin?`)) {
-      return;
-    }
-
     const client = adminAuthService.supabaseClient;
     if (!client) {
-      alert('Database connection not available');
       return;
     }
 
@@ -173,7 +174,7 @@ export default function Settings() {
       await loadAdminUsers();
     } catch (error: unknown) {
       const err = error as { message?: string };
-      alert('Failed to remove admin user: ' + (err.message || 'Unknown error'));
+      console.error('Failed to remove admin user:', err);
     } finally {
       setLoading(false);
     }
@@ -258,22 +259,29 @@ export default function Settings() {
         </p>
 
         <div className="add-admin-section">
-          <div className="admin-input-group">
-            <label htmlFor="new-admin-email">Email Address</label>
-            <input
+          <FormControl>
+            <FormControl.Label htmlFor="new-admin-email">Email Address</FormControl.Label>
+            <TextInput
               id="new-admin-email"
               type="email"
               value={newAdminEmail}
-              onChange={(e) => setNewAdminEmail(e.target.value)}
+              onChange={(e) => {
+                setNewAdminEmail(e.target.value);
+                setAddAdminError('');
+              }}
               placeholder="newadmin@example.com"
-              className="admin-email-input"
+              block
+              sx={{ maxWidth: '400px' }}
             />
-          </div>
+            {addAdminError && (
+              <FormControl.Validation variant="error">{addAdminError}</FormControl.Validation>
+            )}
+          </FormControl>
           <Button
             variant="primary"
             onClick={addAdminUser}
             disabled={!newAdminEmail || loading}
-            className="add-admin-button"
+            sx={{ mt: 3 }}
           >
             Add Admin
           </Button>
@@ -305,9 +313,9 @@ export default function Settings() {
                     <tr key={user.id}>
                       <td>{user.email}</td>
                       <td>
-                        <span className="role-badge">{user.role}</span>
+                        <Label variant="secondary" sx={{ mr: 2 }}>{user.role}</Label>
                         {user.isBuiltIn && (
-                          <span className="built-in-badge">Built-in</span>
+                          <Label variant="secondary">Built-in</Label>
                         )}
                       </td>
                       <td>
@@ -319,14 +327,46 @@ export default function Settings() {
                       </td>
                       <td>
                         {!user.isBuiltIn && (
-                          <button
-                            className="delete-button"
-                            onClick={() => removeAdminUser(user.email)}
-                            disabled={loading}
-                            title="Remove Admin"
-                          >
-                            <TrashIcon size={16} />
-                          </button>
+                          <>
+                            <IconButton
+                              icon={TrashIcon}
+                              aria-label="Remove Admin"
+                              onClick={() => setDeleteConfirmOpen(user.email)}
+                              disabled={loading}
+                              variant="danger"
+                            />
+                            <Dialog
+                              isOpen={deleteConfirmOpen === user.email}
+                              onDismiss={() => setDeleteConfirmOpen(null)}
+                              aria-labelledby="delete-admin-dialog-title"
+                            >
+                              <Dialog.Header id="delete-admin-dialog-title">
+                                Remove Admin
+                              </Dialog.Header>
+                              <Dialog.Content>
+                                Are you sure you want to remove {user.email} as an admin?
+                              </Dialog.Content>
+                              <Dialog.Footer>
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => setDeleteConfirmOpen(null)}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  onClick={async () => {
+                                    if (deleteConfirmOpen) {
+                                      await removeAdminUser(deleteConfirmOpen);
+                                      setDeleteConfirmOpen(null);
+                                    }
+                                  }}
+                                >
+                                  Remove
+                                </Button>
+                              </Dialog.Footer>
+                            </Dialog>
+                          </>
                         )}
                       </td>
                     </tr>
@@ -346,49 +386,51 @@ export default function Settings() {
         </p>
 
         {paymentError && (
-          <div className="error-message">
+          <Flash variant="danger" sx={{ mb: 3 }}>
             {paymentError}
-          </div>
+          </Flash>
         )}
 
         {paymentSuccess && (
-          <div className="success-message">
+          <Flash variant="success" sx={{ mb: 3 }}>
             {paymentSuccess}
-          </div>
+          </Flash>
         )}
 
         <div className="payment-config-form">
-          <div className="config-input-group">
-            <label htmlFor="stream-url">Stream URL</label>
-            <input
+          <FormControl>
+            <FormControl.Label htmlFor="stream-url">Stream URL</FormControl.Label>
+            <TextInput
               id="stream-url"
               type="url"
               value={streamUrl}
               onChange={(e) => setStreamUrl(e.target.value)}
               placeholder="https://example.com/stream"
-              className="config-input"
+              block
+              sx={{ maxWidth: '500px' }}
             />
-            <p className="input-help">The stream URL that will be displayed in payment QR codes</p>
-          </div>
+            <FormControl.Caption>The stream URL that will be displayed in payment QR codes</FormControl.Caption>
+          </FormControl>
 
-          <div className="config-input-group">
-            <label htmlFor="upi-id">UPI ID</label>
-            <input
+          <FormControl sx={{ mt: 3 }}>
+            <FormControl.Label htmlFor="upi-id">UPI ID</FormControl.Label>
+            <TextInput
               id="upi-id"
               type="text"
               value={upiId}
               onChange={(e) => setUpiId(e.target.value)}
               placeholder="yourname@upi"
-              className="config-input"
+              block
+              sx={{ maxWidth: '500px' }}
             />
-            <p className="input-help">Your UPI ID for receiving payments</p>
-          </div>
+            <FormControl.Caption>Your UPI ID for receiving payments</FormControl.Caption>
+          </FormControl>
 
           <Button
             variant="primary"
             onClick={savePaymentConfig}
             disabled={paymentLoading}
-            className="save-config-button"
+            sx={{ mt: 3 }}
           >
             {paymentLoading ? 'Saving...' : 'Save Configuration'}
           </Button>

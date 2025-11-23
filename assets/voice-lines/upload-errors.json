@@ -1,0 +1,38 @@
+[
+  {
+    "hero": "Drow Ranger",
+    "voiceLine": "Doesn't matter if they see 'em coming if they can't get out of the way.",
+    "error": "Failed to download: 503 Service Unavailable",
+    "url": "https://static.wikia.nocookie.net/dota2_gamepedia/images/6/69/Vo_drowranger_drow_arc_multishot_09.mp3/revision/latest?cb=20211226112202"
+  },
+  {
+    "hero": "Drow Ranger",
+    "voiceLine": "Be silent.",
+    "error": "Failed to download: 503 Service Unavailable",
+    "url": "https://static.wikia.nocookie.net/dota2_gamepedia/images/0/07/Vo_drowranger_drow_arc_gust_12.mp3/revision/latest?cb=20211226111628"
+  },
+  {
+    "hero": "Drow Ranger",
+    "voiceLine": "I knew which one would get you. The rest were just a ploy.",
+    "error": "Failed to download: 503 Service Unavailable",
+    "url": "https://static.wikia.nocookie.net/dota2_gamepedia/images/b/ba/Vo_drowranger_drow_arc_multishot_kill_09.mp3/revision/latest?cb=20211226112216"
+  },
+  {
+    "hero": "Drow Ranger",
+    "voiceLine": "Hold on to your bolts.",
+    "error": "Failed to download: 503 Service Unavailable",
+    "url": "https://static.wikia.nocookie.net/dota2_gamepedia/images/e/e8/Vo_drowranger_drow_arc_teleport_pain_01.mp3/revision/latest?cb=20211226112716"
+  },
+  {
+    "hero": "Faceless Void",
+    "voiceLine": "Denied.",
+    "error": "Failed to download: 503 Service Unavailable",
+    "url": "https://static.wikia.nocookie.net/dota2_gamepedia/images/8/8e/Vo_faceless_void_fv_arc_deny_02_02.mp3/revision/latest?cb=20220925031729"
+  },
+  {
+    "hero": "Mars",
+    "voiceLine": "Immortality!",
+    "error": "Failed to download: 503 Service Unavailable",
+    "url": "https://static.wikia.nocookie.net/dota2_gamepedia/images/f/fd/Vo_mars_mars_immort_01.mp3/revision/latest?cb=20201017100154"
+  }
+]
