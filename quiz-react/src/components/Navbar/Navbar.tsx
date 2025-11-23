@@ -28,6 +28,8 @@ export default function Navbar() {
   };
 
   const navLinks: Array<{ path: string; label: string }> = [
+    { path: '/format', label: 'Format & Rules' },
+    { path: '/faq', label: 'FAQ' },
     // Hidden for now
     // { path: '/', label: 'Home' },
     // { path: '/quiz-info', label: 'Quiz Info' },

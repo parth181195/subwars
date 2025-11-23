@@ -3,7 +3,6 @@
   background-color: #0d1117;
   border-top: 1px solid #30363d;
   padding: 60px 24px 32px;
-  margin-top: 20px;
   z-index: 10;
 
   .footer-container {
@@ -125,7 +124,6 @@
 
   @media (max-width: 768px) {
     padding: 48px 24px 24px;
-    margin-top: 60px;
 
     .footer-content {
       flex-direction: column;

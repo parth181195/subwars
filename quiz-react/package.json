@@ -12,6 +12,7 @@
   "dependencies": {
     "@primer/css": "^22.0.2",
     "@primer/octicons-react": "^19.21.0",
+    "@primer/primitives": "^11.3.1",
     "@primer/react": "^38.2.0",
     "@supabase/supabase-js": "^2.84.0",
     "@types/express": "^5.0.5",

@@ -8,6 +8,8 @@ import QuizInfo from './pages/QuizInfo/QuizInfo';
 import Login from './pages/Login/Login';
 import Quiz from './pages/Quiz/Quiz';
 import Profile from './pages/Profile/Profile';
+import FAQ from './pages/FAQ/FAQ';
+import Format from './pages/Format/Format';
 import { quizAuthService } from './services/auth';
 import { analyticsService } from './services/analytics';
 import { environment } from './config/environment';
@@ -52,6 +54,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/quiz-info" element={<QuizInfo />} />
+        <Route path="/faq" element={<FAQ />} />
+        <Route path="/format" element={<Format />} />
         <Route path="/login" element={<Login />} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/quiz" element={<ProtectedRoute><Quiz /></ProtectedRoute>} />

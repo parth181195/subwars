@@ -23,6 +23,12 @@ export default function Footer() {
               <Link to="/" className="footer-link">
                 Home
               </Link>
+              <Link to="/format" className="footer-link">
+                Format & Rules
+              </Link>
+              <Link to="/faq" className="footer-link">
+                FAQ
+              </Link>
               {/* Hidden for now */}
               {/* <Link to="/quiz-info" className="footer-link">
                 Quiz Info
