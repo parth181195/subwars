@@ -146,12 +146,12 @@ export default function Format() {
         <div className="format-header">
           <h1 className="format-title">Format & Rules</h1>
           <p className="format-subtitle">
-            Everything you need to know about SUB WARS V tournament format and rules
+            Everything you need to know about SUB WARS V
           </p>
         </div>
 
 
-        {/* Full Rules List */}
+        {/* Rules Section */}
         <section className="rules-section">
           <div className="rules-list">
             {rulesList.map((rule) => (
