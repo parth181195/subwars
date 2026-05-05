@@ -13,6 +13,9 @@ async function bootstrap() {
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
   
+  // Trust proxy to get correct IP addresses (important for request logging)
+  app.getHttpAdapter().getInstance().set('trust proxy', true);
+  
   // Enable CORS for both HTTP and WebSocket
   const corsOrigin = process.env.CORS_ORIGIN || '*';
   const corsOrigins = corsOrigin === '*' 

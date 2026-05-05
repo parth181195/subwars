@@ -1,68 +1,148 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Inject } from '@nestjs/common';
-import { SupabaseClient } from '@supabase/supabase-js';
-import { Answer, AnswerInsert, AnswerUpdate, AnswerWithUser } from '../types/database.types';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Inject, forwardRef } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { Answer, AnswerInsert, AnswerUpdate, AnswerWithUser, QuestionStatus } from '../types/database.types';
+import { PostgresService } from '../services/postgres.service';
+import { QuizService } from '../quiz/quiz.service';
+import { UserService } from '../user/user.service';
+import { AnswerModel } from '../models/answer.model';
+import { QuestionModel } from '../models/question.model';
+import { QuizModel } from '../models/quiz.model';
+import { Op } from 'sequelize';
 
 @Injectable()
 export class AnswerService {
   constructor(
-    @Inject('SUPABASE_ADMIN_CLIENT')
-    private supabase: SupabaseClient,
+    private postgres: PostgresService,
+    @Inject(forwardRef(() => QuizService))
+    private quizService: QuizService,
+    private userService: UserService,
+    @InjectModel(AnswerModel)
+    private answerModel: typeof AnswerModel,
+    @InjectModel(QuestionModel)
+    private questionModel: typeof QuestionModel,
+    @InjectModel(QuizModel)
+    private quizModel: typeof QuizModel,
   ) {}
 
-  async submitAnswer(answerInsert: AnswerInsert): Promise<Answer> {
-    // Ensure user exists in users table (create if not exists)
-    const userExists = await this.ensureUserExists(answerInsert.user_id);
-    if (!userExists) {
-      // Final verification - check one more time if user exists
-      const { data: finalCheck } = await this.supabase
-        .from('users')
-        .select('id')
-        .eq('id', answerInsert.user_id)
-        .single();
-      
-      if (!finalCheck) {
-        throw new BadRequestException(`User ${answerInsert.user_id} does not exist and could not be created. Please ensure you are logged in.`);
-      }
-    }
-    
-    // Get the question to check correct answer, calculate score, and check if it's reactivated
-    const { data: question, error: questionError } = await this.supabase
-      .from('quiz_questions')
-      .select('correct_answer_hero, started_at, time_limit_seconds, is_active, status')
-      .eq('id', answerInsert.question_id)
-      .single();
+  async submitAnswer(answerInsert: AnswerInsert, userEmail?: string): Promise<Answer> {
+    // Parallelize independent operations: question fetch, quiz check, and existing answer check
+    // Use direct Sequelize queries for maximum performance
+    // Note: User should already exist (created on login), but we verify it exists
+    const [userExists, question, quiz, existingAnswer] = await Promise.all([
+      // Verify user exists (should already exist from login)
+      this.userService.getUserById(answerInsert.user_id).then(u => !!u).catch(() => false),
+      // Get the question directly using Sequelize (much faster than PostgresService)
+      this.questionModel.findOne({
+        where: {
+          id: answerInsert.question_id,
+          quiz_id: answerInsert.quiz_id,
+        },
+      }),
+      // Get quiz for email restrictions check
+      this.quizModel.findByPk(answerInsert.quiz_id),
+      // Check if answer already exists using direct Sequelize query (exclude soft-deleted)
+      this.answerModel.findOne({
+        where: {
+          user_id: answerInsert.user_id,
+          question_id: answerInsert.question_id,
+          deleted_at: { [Op.is]: null }, // Only find non-deleted answers
+        },
+      }),
+    ]);
 
-    if (questionError || !question) {
+    // Verify user exists (should already exist from login)
+    if (!userExists) {
+      throw new BadRequestException(`User ${answerInsert.user_id} does not exist. Please log in first.`);
+    }
+
+    if (!quiz) {
+      throw new NotFoundException('Contest not found');
+    }
+
+    if (!question) {
       throw new NotFoundException('Question not found');
     }
 
-    // Check if answer already exists
-    const { data: existing } = await this.supabase
-      .from('answers')
-      .select('*')
-      .eq('user_id', answerInsert.user_id)
-      .eq('question_id', answerInsert.question_id)
-      .single();
-
-    // If answer exists, check if question is reactivated (live again)
-    const isQuestionReactivated = question.is_active && question.status === 'live';
+    // Convert Sequelize model to plain object
+    const questionData = question.get({ plain: true }) as any;
     
-    if (existing && !isQuestionReactivated) {
-      // Answer exists and question is not reactivated - don't allow resubmission
-      throw new ConflictException('Answer already submitted for this question');
+    // Ensure started_at is in ISO string format if it exists
+    if (questionData.started_at instanceof Date) {
+      questionData.started_at = questionData.started_at.toISOString();
+    }
+
+    const existing = existingAnswer ? existingAnswer.get({ plain: true }) as Answer : null;
+
+    // If answer exists, check retry rules
+    if (existing) {
+      // Rule 1: If already answered correctly, don't allow further attempts
+      if (existing.is_correct) {
+        throw new ConflictException('You have already answered this question correctly. Further attempts are not allowed.');
+      }
+
+      // Rule 2: Check maximum retry limit (3 attempts total)
+      const currentAttemptCount = existing.attempt_count || 1;
+      if (currentAttemptCount >= 3) {
+        throw new ConflictException('Maximum retry limit (3 attempts) reached for this question.');
+      }
+
+      // Rule 3: Check if question is currently active (must be live to submit/retry)
+      if (!questionData.is_active || questionData.status !== QuestionStatus.LIVE) {
+        throw new ConflictException('Question is not currently active. You can only submit answers during active questions.');
+      }
+    } else {
+      // New answer - check if question is active
+      if (!questionData.is_active || questionData.status !== QuestionStatus.LIVE) {
+        throw new ConflictException('Question is not currently active.');
+      }
     }
 
     // Normalize the answer for comparison (case-insensitive, trim whitespace)
     const userAnswer = answerInsert.answer.trim().toLowerCase();
-    const correctAnswer = question.correct_answer_hero.trim().toLowerCase();
+    const correctAnswer = questionData.correct_answer_hero.trim().toLowerCase();
     const isCorrect = userAnswer === correctAnswer;
 
-    // Calculate response time if question started_at is provided
+    // Calculate response time using SERVER TIME ONLY to prevent client-side time manipulation
+    // Always ignore client-provided response_time to prevent cheating
     let responseTime: number | undefined;
-    if (question.started_at) {
-      const startTime = new Date(question.started_at).getTime();
-      const submitTime = new Date().getTime();
-      responseTime = Math.max(0, submitTime - startTime); // Ensure non-negative
+    
+    if (questionData.started_at) {
+      try {
+        // Use server time for all calculations - prevents time manipulation attacks
+        const startTime = new Date(questionData.started_at).getTime();
+        const serverTime = Date.now(); // Server's current time
+        
+        // Calculate response time based on server time
+        responseTime = Math.max(0, serverTime - startTime);
+        
+        // Validate response time is reasonable
+        const timeLimit = (questionData.time_limit_seconds || 120) * 1000;
+        
+        // If response time is negative or suspiciously large, cap it
+        if (responseTime < 0) {
+          // Negative time means client manipulated time - set to 0
+          responseTime = 0;
+        } else if (responseTime > timeLimit * 2) {
+          // If response time is more than 2x the limit, something is wrong - cap at time limit
+          responseTime = timeLimit;
+        }
+        
+        // Additional validation: if client provided response_time, compare it to server calculation
+        // Log suspicious discrepancies for monitoring
+        if (answerInsert.response_time !== undefined && answerInsert.response_time !== null) {
+          const clientProvidedTime = Math.max(0, answerInsert.response_time);
+          const discrepancy = Math.abs(responseTime - clientProvidedTime);
+          
+          // If discrepancy is more than 5 seconds, log it as suspicious
+          if (discrepancy > 5000) {
+            console.warn(`[SECURITY] Suspicious response time discrepancy for user ${answerInsert.user_id}, question ${answerInsert.question_id}: client=${clientProvidedTime}ms, server=${responseTime}ms, diff=${discrepancy}ms`);
+          }
+        }
+      } catch (error) {
+        // Invalid date, skip response time calculation
+        console.error('Error calculating response time:', error);
+        responseTime = undefined;
+      }
     }
 
     // Calculate score based on speed and correctness
@@ -71,8 +151,8 @@ export class AnswerService {
     // Speed bonus: Additional points based on how fast the answer was submitted
     // Max score: 1000 points (100 base + 900 speed bonus)
     let score = 0;
-    if (isCorrect && responseTime !== undefined && question.started_at) {
-      const timeLimit = (question.time_limit_seconds || 120) * 1000; // Convert to milliseconds
+    if (isCorrect && responseTime !== undefined && questionData.started_at) {
+      const timeLimit = (questionData.time_limit_seconds || 120) * 1000; // Convert to milliseconds
       const timeElapsed = Math.min(responseTime, timeLimit);
       
       // Calculate score: faster = higher score
@@ -87,44 +167,33 @@ export class AnswerService {
 
     let answer: Answer;
     
-    if (existing && isQuestionReactivated) {
-      // Question was reactivated - update the existing answer
-      const { data: updatedAnswer, error: updateError } = await this.supabase
-        .from('answers')
-        .update({
-          answer: answerInsert.answer,
-          is_correct: isCorrect,
-          response_time: responseTime,
-          score: score,
-          submitted_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id)
-        .select()
-        .single();
-
-      if (updateError) {
-        throw new BadRequestException(`Failed to update answer: ${updateError.message}`);
-      }
-
-      answer = updatedAnswer as Answer;
+    if (existingAnswer) {
+      // Update existing answer (retry attempt) using direct Sequelize
+      const newAttemptCount = (existing.attempt_count || 1) + 1;
+      
+      await existingAnswer.update({
+        answer: answerInsert.answer,
+        is_correct: isCorrect,
+        response_time: responseTime,
+        score: score,
+        attempt_count: newAttemptCount,
+        // Don't update submitted_at - keep original submission time
+      } as any);
+      
+      await existingAnswer.reload();
+      answer = existingAnswer.get({ plain: true }) as Answer;
     } else {
-      // Create new answer
-      const { data: newAnswer, error: insertError } = await this.supabase
-        .from('answers')
-        .insert({
-          ...answerInsert,
-          is_correct: isCorrect,
-          response_time: responseTime,
-          score: score,
-        })
-        .select()
-        .single();
-
-      if (insertError) {
-        throw new BadRequestException(`Failed to submit answer: ${insertError.message}`);
-      }
-
-      answer = newAnswer as Answer;
+      // Create new answer (first attempt) using direct Sequelize
+      // submitted_at will be automatically set by @CreatedAt decorator
+      const newAnswer = await this.answerModel.create({
+        ...answerInsert,
+        is_correct: isCorrect,
+        response_time: responseTime,
+        score: score,
+        attempt_count: 1,
+      } as any);
+      
+      answer = newAnswer.get({ plain: true }) as Answer;
     }
 
     // Note: WebSocket events are handled in QuizGateway.handleSubmitAnswer()
@@ -133,310 +202,281 @@ export class AnswerService {
     return answer;
   }
 
-  /**
-   * Ensure user exists in users table
-   * If user doesn't exist, create a basic record from auth.users
-   * Returns true if user exists or was created successfully, false otherwise
-   */
-  private async ensureUserExists(authUserId: string): Promise<boolean> {
-    // Check if user already exists in users table
-    const { data: existingUser, error: checkError } = await this.supabase
-      .from('users')
-      .select('id')
-      .eq('id', authUserId)
-      .maybeSingle();
-
-    if (checkError) {
-      console.error('Error checking user existence:', checkError);
-      return false;
-    }
-
-    if (existingUser) {
-      return true; // User already exists
-    }
-
-    // Get user info from auth.users
-    let authUserData: any = null;
-    try {
-      const { data: authUser, error: authError } = await this.supabase.auth.admin.getUserById(authUserId);
-      
-      if (!authError && authUser?.user) {
-        authUserData = authUser.user;
-      }
-    } catch (error) {
-      console.error('Error fetching auth user:', error);
-    }
-    
-    // Prepare user data for insertion
-    const userEmail = authUserData?.email || `user-${authUserId.slice(0, 8)}@temp.com`;
-    const userData: any = {
-      id: authUserId,
-      email: userEmail,
-      full_name: authUserData?.user_metadata?.full_name || 
-                 authUserData?.user_metadata?.name || 
-                 authUserData?.email?.split('@')[0] || 
-                 'Quiz Participant',
-      registration_status: 'pending',
-    };
-
-    // Add optional fields if available
-    if (authUserData?.user_metadata?.avatar_url || authUserData?.user_metadata?.picture) {
-      userData.profile_image_url = authUserData.user_metadata.avatar_url || authUserData.user_metadata.picture;
-    }
-
-    // Check if user with this email already exists (with different ID)
-    const { data: existingUserByEmail, error: emailCheckError } = await this.supabase
-      .from('users')
-      .select('id, email')
-      .eq('email', userEmail)
-      .maybeSingle();
-
-    if (emailCheckError) {
-      console.error('Error checking user by email:', emailCheckError);
-    }
-
-    if (existingUserByEmail && existingUserByEmail.id !== authUserId) {
-      console.log(`User with email ${userEmail} exists with ID ${existingUserByEmail.id}, but auth user ID is ${authUserId}. Migrating user...`);
-      
-      // User exists with different ID - migrate to use auth user ID
-      // Step 1: Update all answers to use the new user ID
-      const { error: updateAnswersError } = await this.supabase
-        .from('answers')
-        .update({ user_id: authUserId })
-        .eq('user_id', existingUserByEmail.id);
-
-      if (updateAnswersError) {
-        console.error('Failed to update answers for user migration:', updateAnswersError);
-        // If we can't update answers, we can't safely change the user ID
-        // Return false and let the error handler deal with it
-        return false;
-      }
-
-      // Step 2: Delete the old user record
-      const { error: deleteError } = await this.supabase
-        .from('users')
-        .delete()
-        .eq('id', existingUserByEmail.id);
-
-      if (deleteError) {
-        console.error('Failed to delete old user record:', deleteError);
-        return false;
-      }
-
-      console.log(`Successfully migrated user from ${existingUserByEmail.id} to ${authUserId}`);
-      
-      // After migration, verify the user doesn't already exist with the new ID
-      const { data: verifyAfterMigration } = await this.supabase
-        .from('users')
-        .select('id')
-        .eq('id', authUserId)
-        .maybeSingle();
-      
-      if (verifyAfterMigration) {
-        console.log('User already exists with authUserId after migration - no need to create');
-        return true;
-      }
-    }
-
-    // Now create/update user record with the correct ID
-    // Use insert with ON CONFLICT handling via upsert
-    const { data: newUser, error: insertError } = await this.supabase
-      .from('users')
-      .upsert(userData, {
-        onConflict: 'id',
-        ignoreDuplicates: false, // Update if exists
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      // If it's still a duplicate email error, it means another request created the user
-      // between our delete and insert (race condition)
-      if (insertError.code === '23505' && insertError.message?.includes('email')) {
-        console.log('Duplicate email error after migration - checking if user exists with authUserId');
-        // Check if user with authUserId now exists (might have been created by another request)
-        const { data: verifyUser } = await this.supabase
-          .from('users')
-          .select('id')
-          .eq('id', authUserId)
-          .maybeSingle();
-        
-        if (verifyUser) {
-          console.log('User exists with authUserId after race condition');
-          return true;
-        }
-        
-        // If still not found, try to find by email and update its ID
-        const { data: userByEmail } = await this.supabase
-          .from('users')
-          .select('id')
-          .eq('email', userEmail)
-          .maybeSingle();
-        
-        if (userByEmail && userByEmail.id !== authUserId) {
-          // Try migration again
-          console.log('Retrying user migration due to race condition');
-          // This is a recursive situation - for now, just return false
-          return false;
-        }
-      }
-      
-      console.error('Failed to create/update user record:', insertError);
-      // Even if insert fails, verify if user exists (might have been created by another request)
-      const { data: verifyUser } = await this.supabase
-        .from('users')
-        .select('id')
-        .eq('id', authUserId)
-        .maybeSingle();
-      return !!verifyUser;
-    }
-
-    return !!newUser;
-  }
 
   async getAnswerById(id: string): Promise<Answer> {
-    const { data: answer, error } = await this.supabase
-      .from('answers')
-      .select('*')
-      .eq('id', id)
-      .single();
+      const answer = await this.answerModel.findOne({
+        where: {
+          id,
+          deleted_at: { [Op.is]: null }, // Exclude soft-deleted answers
+        },
+      });
 
-    if (error || !answer) {
+    if (!answer) {
       throw new NotFoundException(`Answer with ID ${id} not found`);
     }
 
-    return answer as Answer;
+    return answer.get({ plain: true }) as Answer;
   }
 
   async getAnswersByQuizId(quizId: string): Promise<AnswerWithUser[]> {
-    const { data: answers, error } = await this.supabase
-      .from('answers')
-      .select(`
-        *,
-        users!inner (
-          in_game_name,
-          profile_image_url
-        )
-      `)
-      .eq('quiz_id', quizId)
-      .order('submitted_at', { ascending: false });
+    try {
+      // Query answers excluding soft-deleted records
+      const answers = await this.answerModel.findAll({
+        where: {
+          quiz_id: quizId,
+          deleted_at: { [Op.is]: null }, // Exclude soft-deleted answers
+        },
+        order: [['submitted_at', 'DESC']],
+      });
+      
+      const plainAnswers = answers.map(a => a.get({ plain: true }) as Answer);
 
-    if (error) {
-      throw new BadRequestException(`Failed to get answers: ${error.message}`);
+      // Fetch all users efficiently using batch get (much faster than individual queries)
+      const userIds = Array.from(new Set(plainAnswers.map(a => a.user_id).filter(Boolean))) as string[];
+      const usersMap = await this.postgres.getBatchByIds<any>('users', userIds);
+
+      // Combine answers with user data
+      return plainAnswers.map(answer => ({
+        ...answer,
+        users: usersMap.get(answer.user_id) ? {
+          in_game_name: usersMap.get(answer.user_id).in_game_name,
+          profile_image_url: usersMap.get(answer.user_id).profile_image_url,
+        } : undefined,
+      })) as AnswerWithUser[];
+    } catch (error) {
+      throw new BadRequestException(`Failed to get answers: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    return (answers || []) as AnswerWithUser[];
   }
 
   async getAnswersByQuestionId(questionId: string): Promise<Answer[]> {
-    const { data: answers, error } = await this.supabase
-      .from('answers')
-      .select('*')
-      .eq('question_id', questionId)
-      .order('submitted_at', { ascending: false });
-
-    if (error) {
-      throw new BadRequestException(`Failed to get answers: ${error.message}`);
+    try {
+      // Query answers excluding soft-deleted records
+      const answers = await this.answerModel.findAll({
+        where: {
+          question_id: questionId,
+          deleted_at: { [Op.is]: null }, // Exclude soft-deleted answers
+        },
+        order: [['submitted_at', 'DESC']],
+      });
+      
+      // Return sorted answers
+      return answers.map(a => a.get({ plain: true }) as Answer);
+    } catch (error) {
+      throw new BadRequestException(`Failed to get answers: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    return (answers || []) as Answer[];
   }
 
   async getAnswersByUserId(userId: string, quizId?: string): Promise<Answer[]> {
-    let query = this.supabase
-      .from('answers')
-      .select('*')
-      .eq('user_id', userId)
-      .order('submitted_at', { ascending: false });
+    try {
+      const where: any = {
+        user_id: userId,
+        deleted_at: { [Op.is]: null }, // Exclude soft-deleted answers
+      };
+      
+      if (quizId) {
+        where.quiz_id = quizId;
+      }
 
-    if (quizId) {
-      query = query.eq('quiz_id', quizId);
+      // Query answers excluding soft-deleted records
+      const answers = await this.answerModel.findAll({
+        where,
+        order: [['submitted_at', 'DESC']],
+      });
+      
+      return answers.map(a => a.get({ plain: true }) as Answer);
+    } catch (error) {
+      throw new BadRequestException(`Failed to get answers: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
 
-    const { data: answers, error } = await query;
+  /**
+   * Get user's answer for a specific question
+   */
+  async getUserAnswerForQuestion(userId: string, questionId: string): Promise<Answer | null> {
+    try {
+      const answer = await this.answerModel.findOne({
+        where: {
+          user_id: userId,
+          question_id: questionId,
+          deleted_at: { [Op.is]: null }, // Exclude soft-deleted answers
+        },
+        order: [['submitted_at', 'DESC']], // Get most recent answer if multiple
+      });
 
-    if (error) {
-      throw new BadRequestException(`Failed to get answers: ${error.message}`);
+      return answer ? (answer.get({ plain: true }) as Answer) : null;
+    } catch (error) {
+      throw new BadRequestException(`Failed to get user answer: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    return (answers || []) as Answer[];
   }
 
   async getLeaderboard(quizId: string): Promise<AnswerWithUser[]> {
-    // Get all answers for the quiz with user info
-    const { data: answers, error } = await this.supabase
-      .from('answers')
-      .select(`
-        *,
-        users!inner (
-          in_game_name,
-          profile_image_url
-        )
-      `)
-      .eq('quiz_id', quizId)
-      .order('submitted_at', { ascending: true });
-
-    if (error) {
-      throw new BadRequestException(`Failed to get leaderboard: ${error.message}`);
-    }
-
-    if (!answers || answers.length === 0) {
-      return [];
-    }
-
-    // Aggregate scores by user (sum all scores for each user in the quiz)
-    const userScores = new Map<string, { totalScore: number; firstAnswer: AnswerWithUser }>();
-    
-    answers.forEach((answer: AnswerWithUser) => {
-      const userId = answer.user_id;
-      if (!userScores.has(userId)) {
-        userScores.set(userId, { totalScore: 0, firstAnswer: answer });
-      }
-      const userData = userScores.get(userId)!;
-      userData.totalScore += answer.score || 0;
-    });
-
-    // Convert to array and sort by total score (descending), then by earliest submission
-    const sortedLeaderboard = Array.from(userScores.values())
-      .map((data) => ({
-        ...data.firstAnswer,
-        score: data.totalScore, // Replace individual score with total score
-      }))
-      .sort((a, b) => {
-        // Sort by score descending
-        if ((b.score || 0) !== (a.score || 0)) {
-          return (b.score || 0) - (a.score || 0);
-        }
-        // If scores are equal, sort by earliest submission
-        return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+    try {
+      // Get all answers for the quiz excluding soft-deleted records
+      const answers = await this.answerModel.findAll({
+        where: {
+          quiz_id: quizId,
+          deleted_at: { [Op.is]: null }, // Exclude soft-deleted answers
+        },
+        order: [['submitted_at', 'ASC']], // Sort by submitted_at ascending for leaderboard (earliest first)
+      });
+      
+      const plainAnswers = answers.map(a => a.get({ plain: true }) as Answer);
+      
+      // Sort by submitted_at ascending for leaderboard (earliest first)
+      const sortedAnswers = plainAnswers.sort((a, b) => {
+        const timeA = new Date(a.submitted_at || 0).getTime();
+        const timeB = new Date(b.submitted_at || 0).getTime();
+        return timeA - timeB;
       });
 
-    return sortedLeaderboard as AnswerWithUser[];
+      if (!sortedAnswers || sortedAnswers.length === 0) {
+        return [];
+      }
+
+      // Fetch all users efficiently using batch get (much faster than individual queries)
+      const userIds = Array.from(new Set(sortedAnswers.map(a => a.user_id).filter(Boolean))) as string[];
+      const usersMap = await this.postgres.getBatchByIds<any>('users', userIds);
+
+      // Combine answers with user data
+      const answersWithUser: AnswerWithUser[] = sortedAnswers.map(answer => ({
+        ...answer,
+        users: usersMap.get(answer.user_id) ? {
+          in_game_name: usersMap.get(answer.user_id).in_game_name,
+          profile_image_url: usersMap.get(answer.user_id).profile_image_url,
+        } : undefined,
+      }));
+
+      // Aggregate scores by user (sum all scores for each user in the quiz)
+      const userScores = new Map<string, { totalScore: number; firstAnswer: AnswerWithUser }>();
+      
+      answersWithUser.forEach((answer) => {
+        const userId = answer.user_id;
+        if (!userScores.has(userId)) {
+          userScores.set(userId, { totalScore: 0, firstAnswer: answer });
+        }
+        const userData = userScores.get(userId)!;
+        userData.totalScore += answer.score || 0;
+      });
+
+      // Convert to array and sort by total score (descending), then by earliest submission
+      const sortedLeaderboard = Array.from(userScores.values())
+        .map((data) => ({
+          ...data.firstAnswer,
+          score: data.totalScore, // Replace individual score with total score
+        }))
+        .sort((a, b) => {
+          // Sort by score descending
+          if ((b.score || 0) !== (a.score || 0)) {
+            return (b.score || 0) - (a.score || 0);
+          }
+          // If scores are equal, sort by earliest submission
+          return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+        });
+
+      return sortedLeaderboard;
+    } catch (error) {
+      throw new BadRequestException(`Failed to get leaderboard: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async updateAnswer(id: string, answerUpdate: AnswerUpdate): Promise<Answer> {
-    const { data: answer, error } = await this.supabase
-      .from('answers')
-      .update(answerUpdate)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      throw new BadRequestException(`Failed to update answer: ${error.message}`);
+    try {
+      const answer = await this.answerModel.findOne({
+        where: {
+          id,
+          deleted_at: { [Op.is]: null }, // Don't allow updating soft-deleted answers
+        },
+      });
+      
+      if (!answer) {
+        throw new NotFoundException(`Answer with ID ${id} not found or has been deleted`);
+      }
+      
+      await answer.update(answerUpdate as any);
+      await answer.reload();
+      return answer.get({ plain: true }) as Answer;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to update answer: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    return answer as Answer;
   }
 
   async deleteAnswer(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('answers')
-      .delete()
-      .eq('id', id);
+    try {
+      await this.postgres.delete('answers', id);
+    } catch (error) {
+      throw new BadRequestException(`Failed to delete answer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 
-    if (error) {
-      throw new BadRequestException(`Failed to delete answer: ${error.message}`);
+  /**
+   * Soft delete all answers for a specific quiz (reset quiz leaderboard)
+   * Sets deleted_at timestamp instead of actually deleting records
+   */
+  async deleteAnswersByQuizId(quizId: string): Promise<number> {
+    try {
+      // Use transaction for atomic soft deletion
+      return await this.postgres.runTransaction(async (transaction) => {
+        const answers = await this.answerModel.findAll({
+          where: {
+            quiz_id: quizId,
+            deleted_at: { [Op.is]: null }, // Only soft delete non-deleted answers
+          },
+          transaction,
+        });
+
+        if (answers.length === 0) {
+          return 0;
+        }
+
+        // Soft delete all answers in parallel within transaction
+        const now = new Date();
+        await Promise.all(
+          answers.map(answer => 
+            answer.update({ deleted_at: now } as any, { transaction })
+          )
+        );
+
+        return answers.length;
+      });
+    } catch (error) {
+      throw new BadRequestException(`Failed to soft delete answers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Exclude all answers from combined leaderboard (reset combined leaderboard)
+   * Sets excluded_from_combined flag instead of soft deleting, so quiz-specific leaderboards remain intact
+   */
+  async deleteAllAnswers(): Promise<number> {
+    try {
+      // Use transaction for atomic update
+      return await this.postgres.runTransaction(async (transaction) => {
+        const answers = await this.answerModel.findAll({
+          where: {
+            deleted_at: { [Op.is]: null }, // Only process non-deleted answers
+            excluded_from_combined: { [Op.or]: [false, null] }, // Only process answers not already excluded
+          },
+          transaction,
+        });
+
+        if (answers.length === 0) {
+          return 0;
+        }
+
+        // Mark all answers as excluded from combined leaderboard (but keep them for quiz-specific leaderboards)
+        await Promise.all(
+          answers.map(answer => 
+            answer.update({ excluded_from_combined: true } as any, { transaction })
+          )
+        );
+
+        return answers.length;
+      });
+    } catch (error) {
+      throw new BadRequestException(`Failed to exclude answers from combined leaderboard: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

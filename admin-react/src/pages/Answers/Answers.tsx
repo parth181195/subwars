@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Heading } from '@primer/react';
 import { ArrowLeftIcon } from '@primer/octicons-react';
+import { environment } from '../../config/environment';
+import { getAuthHeaders } from '../../utils/api-client';
 import './Answers.scss';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = environment.apiBaseUrl || 'http://localhost:3000';
 
 interface Answer {
   id: string;
   user_id: string;
+  user_email?: string | null;
   quiz_id: string;
   question_id: string;
   answer: string;
@@ -40,13 +43,20 @@ export default function Answers() {
     if (!questionId) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}/answers`);
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}/answers`, { headers });
       if (response.ok) {
         const data = await response.json();
-        setAnswers(data);
+        // Validate data is an array
+        if (Array.isArray(data)) {
+          setAnswers(data);
+        } else {
+          setAnswers([]);
+        }
         setError(null);
       } else {
-        setError('Failed to fetch answers');
+        const errorText = await response.text().catch(() => 'Unknown error');
+        setError(`Failed to fetch answers: ${response.status} ${errorText}`);
       }
     } catch (err) {
       console.error('Failed to fetch answers:', err);
@@ -60,12 +70,21 @@ export default function Answers() {
     if (!questionId) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}`);
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}`, { headers });
       if (response.ok) {
         const data = await response.json();
-        setQuestion(data);
+        // Validate question data
+        if (data && data.id) {
+          setQuestion(data);
+        } else {
+          setQuestion(null);
+          console.error('Invalid question data received');
+        }
       } else {
-        console.error('Failed to fetch question:', response.statusText);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`Failed to fetch question: ${response.status} ${errorText}`);
+        setQuestion(null);
       }
     } catch (err) {
       console.error('Failed to fetch question:', err);
@@ -126,7 +145,7 @@ export default function Answers() {
             Answers
             {question && (
               <span className="question-info">
-                {' '}• Question {question.order_index + 1}
+                {' '}• Question {(question.order_index ?? 0) + 1}
                 {question.status === 'live' && (
                   <span className="live-badge">LIVE</span>
                 )}
@@ -153,10 +172,10 @@ export default function Answers() {
             <thead>
               <tr>
                 <th>#</th>
-                <th>User ID</th>
+                <th>User Email</th>
                 <th>Answer</th>
                 <th>Correct</th>
-                <th>Response Time (ms)</th>
+                <th>Response Time (s)</th>
                 <th>Score</th>
                 <th>Submitted At</th>
               </tr>
@@ -175,12 +194,12 @@ export default function Answers() {
                     className={answer.is_correct ? 'correct' : 'incorrect'}
                   >
                     <td>{index + 1}</td>
-                    <td>{answer.user_id}</td>
-                    <td>{answer.answer}</td>
+                    <td>{answer.user_email || answer.user_id || 'N/A'}</td>
+                    <td>{answer.answer || 'N/A'}</td>
                     <td>{answer.is_correct ? '✓' : '✗'}</td>
-                    <td>{answer.response_time || 'N/A'}</td>
-                    <td>{answer.score}</td>
-                    <td>{new Date(answer.submitted_at).toLocaleString()}</td>
+                    <td>{answer.response_time ? ((answer.response_time / 1000).toFixed(2) + 's') : 'N/A'}</td>
+                    <td>{answer.score ?? 0}</td>
+                    <td>{answer.submitted_at ? new Date(answer.submitted_at).toLocaleString() : 'N/A'}</td>
                   </tr>
                 ))
               )}

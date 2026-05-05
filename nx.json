@@ -1,5 +1,8 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "tui": {
+    "enabled": false
+  },
   "targetDefaults": {
     "@nx/eslint:lint": {
       "cache": true,

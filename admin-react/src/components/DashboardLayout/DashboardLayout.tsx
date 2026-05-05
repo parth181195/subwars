@@ -7,7 +7,10 @@ import {
   GearIcon, 
   SignOutIcon,
   ThreeBarsIcon,
-  FileIcon
+  FileIcon,
+  VideoIcon,
+  TrophyIcon,
+  PeopleIcon
 } from '@primer/octicons-react';
 import { adminAuthService } from '../../services/auth';
 import './DashboardLayout.scss';
@@ -38,6 +41,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const navItems: NavItem[] = [
     { label: 'Dashboard', icon: <HomeIcon size={20} />, route: '/dashboard' },
     { label: 'Quizzes', icon: <FileIcon size={20} />, route: '/quizzes' },
+    { label: 'Leaderboard', icon: <TrophyIcon size={20} />, route: '/leaderboard' },
+    { label: 'Users', icon: <PeopleIcon size={20} />, route: '/users' },
+    { label: 'Overlay', icon: <VideoIcon size={20} />, route: '/overlay' },
     { label: 'Settings', icon: <GearIcon size={20} />, route: '/settings' },
   ];
 
@@ -74,7 +80,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               if (item.route === '/dashboard') {
                 isActive = location.pathname === item.route || location.pathname === '/';
               } else if (item.route === '/quizzes') {
-                isActive = location.pathname.startsWith('/quizzes');
+                isActive = location.pathname.startsWith('/quizzes') && !location.pathname.startsWith('/quizzes/leaderboard');
+              } else if (item.route === '/leaderboard') {
+                isActive = location.pathname === item.route;
+              } else if (item.route === '/users') {
+                isActive = location.pathname === item.route;
+              } else if (item.route === '/overlay') {
+                isActive = location.pathname === item.route;
               } else {
                 isActive = location.pathname === item.route;
               }

@@ -4,6 +4,49 @@
   position: relative;
   padding-bottom: 0;
 
+  /* Stream Section - Above Hero */
+  .stream-section {
+    width: 100%;
+    background-color: #0d1117;
+    padding: 40px 0;
+    border-bottom: 1px solid #30363d;
+    position: relative;
+    z-index: 1;
+
+    .stream-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 24px;
+
+      .stream-embed-wrapper {
+        position: relative;
+        width: 100%;
+        padding-bottom: 56.25%; /* 16:9 aspect ratio */
+        height: 0;
+        overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+        .stream-embed {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border: none;
+        }
+      }
+    }
+
+    @media (max-width: 768px) {
+      padding: 24px 0;
+
+      .stream-container {
+        padding: 0 16px;
+      }
+    }
+  }
+
   /* Shared Background with Parallax */
   &::before {
     content: '';
@@ -93,7 +136,12 @@
         left: 0;
         width: 100%;
         height: 150px;
-        background: linear-gradient(to top, transparent 0%, rgba(13, 17, 23, 0.3) 40%, rgba(13, 17, 23, 0.5) 100%);
+        background: linear-gradient(
+          to top,
+          transparent 0%,
+          rgba(13, 17, 23, 0.3) 40%,
+          rgba(13, 17, 23, 0.5) 100%
+        );
         pointer-events: none;
         z-index: 3;
         @media (max-width: 768px) {
@@ -103,7 +151,8 @@
     }
 
     .hero-title {
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 140px;
       font-weight: 700;
       margin: 0 0 24px 0;
@@ -142,7 +191,8 @@
     }
 
     .hero-subheading {
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 46px;
       font-weight: 600;
       margin: 0 0 24px 0;
@@ -161,79 +211,148 @@
       }
     }
 
+    .hero-prize-pool {
+      max-width: 450px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      
+      padding: 12px 24px;
+      background: rgba(102, 192, 244, 0.08);
+      border: 1px solid rgba(102, 192, 244, 0.2);
+        border-radius: 8px;
+      backdrop-filter: blur(5px);
+
+      .prize-pool-label {
+        font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          'Roboto', sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        color: #8b949e;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .prize-pool-value {
+        font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          'Roboto', sans-serif;
+        font-size: 58px;
+        font-weight: 600;
+        color: #66c0f4;
+        line-height: 1.2;
+      }
+
+      @media (max-width: 768px) {
+        padding: 10px 20px;
+        margin-bottom: 20px;
+
+        .prize-pool-label {
+          font-size: 11px;
+        }
+
+        .prize-pool-value {
+          font-size: 24px;
+        }
+        }
+      }
+
     .hero-dates {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 12px;
-      margin: 0 0 32px 0;
-      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-      font-size: 24px;
-      font-weight: 600;
+      gap: 16px;
+      margin: 0 0 0 0;
+      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       text-align: center;
 
-      .date-item {
-        padding: 8px 16px;
+      .date-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 20px;
         background-color: rgba(102, 192, 244, 0.1);
         border: 1px solid rgba(102, 192, 244, 0.3);
         border-radius: 8px;
-        color: #ffffff;
+        min-width: 70px;
         transition: all 0.3s ease;
-
+        backdrop-filter: blur(10px);
         &:hover {
           background-color: rgba(102, 192, 244, 0.2);
           border-color: rgba(102, 192, 244, 0.5);
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(102, 192, 244, 0.3);
+        }
+
+        .date-day {
+          font-size: 28px;
+          font-weight: 700;
+          color: #ffffff;
+          line-height: 1.2;
+          margin-bottom: 4px;
+        }
+
+        .date-month {
+          font-size: 14px;
+          font-weight: 500;
+          color: #8b949e;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          line-height: 1;
         }
       }
 
       .date-separator {
         color: #8b949e;
         font-weight: 400;
-      }
-
-      .date-month {
-        padding: 8px 16px;
-        background-color: rgba(102, 192, 244, 0.1);
-        border: 1px solid rgba(102, 192, 244, 0.3);
-        border-radius: 8px;
-        color: #ffffff;
-        transition: all 0.3s ease;
-
-        &:hover {
-          background-color: rgba(102, 192, 244, 0.2);
-          border-color: rgba(102, 192, 244, 0.5);
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(102, 192, 244, 0.3);
-        }
+        font-size: 20px;
+        margin: 0 4px;
       }
 
       @media (max-width: 768px) {
-        font-size: 16px;
-        gap: 8px;
+        gap: 12px;
         margin-bottom: 24px;
         flex-wrap: wrap;
 
-        .date-item,
+        .date-group {
+          padding: 10px 16px;
+          min-width: 60px;
+
+          .date-day {
+            font-size: 24px;
+          }
+
         .date-month {
-          padding: 6px 12px;
+            font-size: 12px;
+          }
+        }
+
+        .date-separator {
+          font-size: 16px;
+          margin: 0 2px;
         }
       }
     }
 
     .hero-description {
-      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 18px;
       line-height: 1.8;
       color: #f0f6fc;
-      margin: 0 auto 48px auto;
       width: 100%;
       max-width: 1200px;
       text-align: center;
+      margin: 15px auto;
 
       .hosted-by {
-        font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          'Roboto', sans-serif;
         font-size: 16px;
         font-weight: 700;
         color: #66c0f4;
@@ -259,6 +378,7 @@
       }
     }
 
+
     .hero-actions {
       display: flex;
       flex-direction: column;
@@ -266,17 +386,20 @@
       justify-content: center;
       align-items: center;
       flex-wrap: wrap;
+      margin-top: 12px;
 
       .hero-button-link {
         display: inline-block;
         text-decoration: none;
+        
       }
 
       .hero-button {
         padding: 14px 40px;
         font-size: 1.8em;
         font-weight: 600;
-        font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          'Roboto', sans-serif;
         background-color: #ffffff !important;
         color: #0d1117 !important;
         border: 1px solid #30363d !important;
@@ -288,6 +411,20 @@
         white-space: nowrap;
         height: auto;
         margin-top: 8px;
+        width: 100%;
+
+        &.hero-button-secondary {
+          background-color: #ffffff !important;
+          color: #0d1117 !important;
+          border-color: #ffffff !important;
+
+          &:hover {
+            background-color: #f0f0f0 !important;
+            border-color: #f0f0f0 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
+          }
+        }
 
         &:hover {
           background-color: #f0f6fc !important;
@@ -315,7 +452,8 @@
           padding: 10px 24px;
           font-size: 14px;
           font-weight: 500;
-          font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+          font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+            'Roboto', sans-serif;
           background-color: rgba(240, 246, 252, 0.1) !important;
           color: #f0f6fc !important;
           border: 1px solid rgba(102, 192, 244, 0.3) !important;
@@ -360,7 +498,8 @@
     }
 
     .features-title {
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 52px;
       font-weight: 700;
       color: #ffffff;
@@ -379,7 +518,8 @@
     }
 
     .features-description {
-      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 18px;
       line-height: 1.8;
       color: #f0f6fc;
@@ -435,7 +575,8 @@
       }
 
       .feature-section-title {
-        font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          'Roboto', sans-serif;
         font-size: 42px;
         font-weight: 700;
         color: #ffffff;
@@ -447,7 +588,8 @@
       }
 
       .feature-section-description {
-        font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          'Roboto', sans-serif;
         font-size: 18px;
         line-height: 1.8;
         color: #f0f6fc;
@@ -516,7 +658,8 @@
     }
 
     .stats-title {
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 48px;
       font-weight: 700;
       color: #ffffff;
@@ -584,7 +727,8 @@
     }
 
     .stat-value {
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 48px;
       font-weight: 700;
       color: #66c0f4;
@@ -594,7 +738,8 @@
     }
 
     .stat-label {
-      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 16px;
       font-weight: 500;
       color: #8b949e;
@@ -700,7 +845,6 @@
         pointer-events: none;
       }
 
-
       > *:not(.cta-bg-image) {
         position: relative;
         z-index: 1;
@@ -708,7 +852,8 @@
     }
 
     .cta-main-title {
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 56px;
       font-weight: 700;
       color: #ffffff;
@@ -721,7 +866,8 @@
     }
 
     .cta-main-description {
-      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 18px;
       line-height: 1.8;
       color: #f0f6fc;
@@ -745,7 +891,8 @@
     }
 
     .cta-card-title {
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 32px;
       font-weight: 700;
       color: #ffffff;
@@ -757,7 +904,8 @@
     }
 
     .cta-card-description {
-      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 16px;
       line-height: 1.6;
       color: #f0f6fc;
@@ -774,7 +922,8 @@
       padding: 14px 40px;
       font-size: 1.8em;
       font-weight: 600;
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       background-color: #ffffff !important;
       color: #0d1117 !important;
       border: 1px solid #30363d !important;
@@ -879,9 +1028,6 @@
       align-items: stretch;
       gap: 12px;
 
-      .hero-button-link {
-        width: 100%;
-      }
 
       .hero-button {
         width: 100%;
@@ -900,6 +1046,300 @@
   }
 
   /* Team Section */
+  /* GUESS THE HERO Section */
+  .guess-hero-section {
+    margin-top: 63px;
+    width: 100%;
+    background: linear-gradient(135deg, rgba(102, 192, 244, 0.1) 0%, rgba(13, 17, 23, 0.9) 100%);
+    padding: 80px 0;
+    position: relative;
+    z-index: 1;
+    border-top: 1px solid rgba(102, 192, 244, 0.2);
+    border-bottom: 1px solid rgba(102, 192, 244, 0.2);
+
+    @media (max-width: 768px) {
+      margin-top: -1px;
+    }
+    .guess-hero-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .guess-hero-content {
+      text-align: center;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .guess-hero-title {
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-size: 64px;
+      font-weight: 700;
+      color: #66c0f4;
+      margin: 0 0 24px 0;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      text-shadow: 0 0 20px rgba(102, 192, 244, 0.5);
+
+      @media (max-width: 768px) {
+        font-size: 42px;
+        letter-spacing: 2px;
+        margin-bottom: 20px;
+      }
+    }
+
+    .guess-hero-description {
+      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-size: 18px;
+      line-height: 1.8;
+      color: #f0f6fc;
+      margin: 0 0 40px 0;
+
+      @media (max-width: 768px) {
+        font-size: 16px;
+        line-height: 1.6;
+        margin-bottom: 32px;
+      }
+    }
+
+    .guess-hero-features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      margin: 0 0 48px 0;
+
+      @media (max-width: 768px) {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin-bottom: 32px;
+      }
+    }
+
+    .guess-hero-feature {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 24px;
+      background: rgba(102, 192, 244, 0.05);
+      border: 1px solid rgba(102, 192, 244, 0.2);
+      border-radius: 8px;
+      transition: all 0.3s ease;
+
+      &:hover {
+        background: rgba(102, 192, 244, 0.1);
+        border-color: rgba(102, 192, 244, 0.4);
+        transform: translateY(-4px);
+        box-shadow: 0 8px 16px rgba(102, 192, 244, 0.2);
+      }
+
+      .feature-icon {
+        width: 48px;
+        height: 48px;
+        object-fit: contain;
+        display: block;
+      }
+
+      .feature-text {
+        font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        font-size: 14px;
+        color: #f0f6fc;
+        text-align: center;
+        font-weight: 500;
+      }
+    }
+
+    .guess-hero-button-link,
+    .guess-hero-cta-link {
+      display: inline-block;
+      text-decoration: none;
+      width: 100%;
+    }
+
+    .guess-hero-button,
+    .guess-hero-cta-button {
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-size: 1.8em;
+      font-weight: 600;
+      padding: 14px 40px;
+      background-color: #ffffff !important;
+      color: #0d1117 !important;
+      border: 1px solid #ffffff !important;
+      border-radius: 6px !important;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      white-space: nowrap;
+      height: auto;
+      margin-top: 8px;
+      width: 100%;
+
+      &:hover {
+        background-color: #f0f0f0 !important;
+        border-color: #f0f0f0 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+
+      @media (max-width: 768px) {
+        font-size: 1.4em;
+        padding: 12px 32px;
+      }
+    }
+  }
+
+  /* Sponsors Section */
+  .sponsors-section {
+
+    background-image: url(https://cdn.steamstatic.com/apps/dota2/images/dota_react//dawnbreaker/hammer-bg.png);
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    padding: 80px 100px;
+    background-color: #0d1117;
+    overflow: hidden;
+
+    .sponsors-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 3;
+    }
+
+    .sponsors-title {
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
+      font-size: 64px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 60px;
+      color: #ffffff;
+      text-shadow: 0 4px 20px rgba(255, 255, 255, 0.3);
+    }
+
+    .sponsors-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+
+    .sponsor-card {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.08) 0%, rgba(255, 200, 0, 0.03) 100%);
+      border: 1px solid rgba(255, 215, 0, 0.2);
+      border-radius: 16px;
+      padding: 40px 30px;
+      text-align: center;
+      transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+      position: relative;
+      overflow: hidden;
+
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, transparent 100%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      &:hover {
+        transform: translateY(-8px);
+        border-color: rgba(255, 215, 0, 0.5);
+        box-shadow: 0 12px 40px rgba(255, 215, 0, 0.2);
+
+        &::before {
+          opacity: 1;
+        }
+      }
+
+      .sponsor-name {
+        font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          'Roboto', sans-serif;
+        font-size: 24px;
+        font-weight: 600;
+        color: #f0f6fc;
+        text-align: center;
+        text-transform: uppercase;
+        position: relative;
+        z-index: 1;
+      }
+    }
+
+    .sponsors-footer {
+      text-align: center;
+      margin-top: 40px;
+
+      .view-all-sponsors-link {
+        text-decoration: none;
+        display: inline-block;
+
+        .view-all-button {
+          font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+            'Roboto', sans-serif;
+          background: rgba(255, 215, 0, 0.1);
+          border: 1px solid rgba(255, 215, 0, 0.3);
+          color: #FFD700;
+          padding: 14px 32px;
+          font-size: 16px;
+          font-weight: 500;
+          border-radius: 8px;
+          transition: all 0.3s ease;
+
+          &:hover {
+            background: rgba(255, 215, 0, 0.2);
+            border-color: rgba(255, 215, 0, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+          }
+        }
+      }
+    }
+
+    @media (max-width: 1200px) {
+      padding: 80px 60px;
+    }
+
+    @media (max-width: 768px) {
+      padding: 60px 24px;
+
+      .sponsors-title {
+        font-size: 42px;
+        margin-bottom: 40px;
+      }
+
+      .sponsors-grid {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        margin-bottom: 30px;
+      }
+
+      .sponsor-card {
+        padding: 30px 24px;
+
+        .sponsor-name {
+          font-size: 20px;
+        }
+      }
+
+      .sponsors-footer {
+        margin-top: 30px;
+      }
+    }
+  }
+
   .team-section {
     position: relative;
     z-index: 2;
@@ -914,7 +1354,8 @@
     }
 
     .team-title {
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 48px;
       font-weight: 700;
       color: #ffffff;
@@ -966,7 +1407,8 @@
       }
 
       &:hover .team-member-name .team-member-alias {
-        text-shadow: 0 0 10px var(--glow-color), 0 0 20px var(--glow-color), 0 0 30px var(--glow-color);
+        text-shadow: 0 0 10px var(--glow-color), 0 0 20px var(--glow-color),
+          0 0 30px var(--glow-color);
         color: #8dd3ff;
       }
     }
@@ -978,7 +1420,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.3s ease;
+      transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1),
+        box-shadow 0.3s ease;
       overflow: visible;
       transform-style: preserve-3d;
       will-change: transform;
@@ -1025,7 +1468,8 @@
     }
 
     .team-member-name {
-      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'Reaver', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'Roboto', sans-serif;
       font-size: 20px;
       font-weight: 600;
       color: #f0f6fc;

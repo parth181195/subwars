@@ -1,0 +1,31 @@
+{
+  "name": "api",
+  "version": "0.0.1",
+  "dependencies": {
+    "@nestjs/common": "^11.1.9",
+    "@nestjs/core": "^11.1.9",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/mapped-types": "^2.1.0",
+    "@nestjs/platform-express": "^11.1.9",
+    "@nestjs/platform-socket.io": "^11.1.9",
+    "@nestjs/sequelize": "^11.0.1",
+    "@nestjs/websockets": "^11.1.9",
+    "@supabase/supabase-js": "^2.83.0",
+    "axios": "^1.13.2",
+    "bcrypt": "^6.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.6.0",
+    "node-cron": "^4.2.1",
+    "pg": "^8.16.3",
+    "pg-hstore": "^2.3.4",
+    "reflect-metadata": "^0.1.14",
+    "sequelize": "^6.37.7",
+    "sequelize-typescript": "^2.1.6",
+    "socket.io": "^4.8.1"
+  },
+  "main": "main.js"
+}
+

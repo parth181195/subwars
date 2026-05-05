@@ -1,15 +1,22 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@primer/react';
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { environment } from '../../config/environment';
 import ToastContainer, { useToast } from '../../components/Toast/ToastContainer';
+import { formatIndianNumber } from '../../utils/formatNumber';
+import { quizAuthService } from '../../services/auth';
+import type { AuthUser } from '../../services/auth';
 import teamMember1 from '../../assets/images/1.png';
 import teamMember2 from '../../assets/images/2.png';
 import teamMember3 from '../../assets/images/3.png';
 import teamMember4 from '../../assets/images/4.png';
 import teamMember5 from '../../assets/images/5.png';
 import teamMember6 from '../../assets/images/6.png';
+import teamMember7 from '../../assets/images/7.png';
+import teamMember8 from '../../assets/images/8.png';
+import teamMember9 from '../../assets/images/9.png';
+import teamMember10 from '../../assets/images/10.png';
 import './Home.scss';
 
 interface TeamMemberCardProps {
@@ -35,25 +42,25 @@ function TeamMemberCard({ image, name, alt, glowColor }: TeamMemberCardProps) {
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current || !avatarRef.current) return;
-    
+
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
 
     animationFrameRef.current = requestAnimationFrame(() => {
       if (!cardRef.current || !avatarRef.current) return;
-      
+
       const card = cardRef.current;
       const rect = card.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      
+
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
-      
+
       const rotateX = (y - centerY) / 12;
       const rotateY = (centerX - x) / 12;
-      
+
       avatarRef.current.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.03, 1.03, 1.03)`;
     });
   }, []);
@@ -62,9 +69,9 @@ function TeamMemberCard({ image, name, alt, glowColor }: TeamMemberCardProps) {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
-    
+
     if (!avatarRef.current) return;
-    
+
     requestAnimationFrame(() => {
       if (avatarRef.current) {
         avatarRef.current.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) scale3d(1, 1, 1)';
@@ -81,13 +88,13 @@ function TeamMemberCard({ image, name, alt, glowColor }: TeamMemberCardProps) {
   const lastName = nameParts ? nameParts[3] : '';
 
   return (
-    <div 
+    <div
       className="team-member"
       ref={cardRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      <div 
+      <div
         className="team-member-avatar"
         ref={avatarRef}
         style={{ '--glow-color': currentGlowColor } as React.CSSProperties}
@@ -109,27 +116,153 @@ function TeamMemberCard({ image, name, alt, glowColor }: TeamMemberCardProps) {
   );
 }
 
+interface Sponsor {
+  name: string;
+  order: number;
+}
+
 export default function Home() {
   const { toasts, addToast, removeToast } = useToast();
+  const [prizePool, setPrizePool] = useState<string>('₹4,00,000+');
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+  const [user, setUser] = useState<AuthUser | null>(quizAuthService.user);
+  const [streamUrl, setStreamUrl] = useState<string>('');
+  const [showStream, setShowStream] = useState<boolean>(false);
 
-  // Initialize WebSocket connection for notifications
+  // Subscribe to auth state changes
   useEffect(() => {
-    const socketUrl = environment.apiUrl.replace('/api', '');
-    const newSocket = io(`${socketUrl}/quiz`, {
-      transports: ['websocket', 'polling'],
+    const unsubscribe = quizAuthService.subscribe((currentUser) => {
+      setUser(currentUser);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Fetch prize pool from API
+  useEffect(() => {
+    const fetchPrizePool = async () => {
+      try {
+        const response = await fetch(`${environment.apiUrl}/app-config/prize-pool`, {
+          cache: 'no-cache',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.prizePool && data.prizePool.trim()) {
+            setPrizePool(data.prizePool);
+          }
+        } else {
+          console.warn('[PrizePool] Failed to fetch prize pool:', response.status, response.statusText);
+        }
+      } catch (error) {
+        console.error('[PrizePool] Error fetching prize pool:', error);
+        // Use default value if fetch fails
+      }
+    };
+    fetchPrizePool();
+
+    // Refresh prize pool every 30 seconds to get updates
+    const interval = setInterval(fetchPrizePool, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch sponsors from API
+  useEffect(() => {
+    const fetchSponsors = async () => {
+      try {
+        const response = await fetch(`${environment.apiUrl}/app-config/sponsors`, {
+          cache: 'no-cache',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.sponsors && Array.isArray(data.sponsors)) {
+            setSponsors(data.sponsors);
+          } else if (Array.isArray(data)) {
+            // Handle case where API returns array directly
+            setSponsors(data);
+          }
+        }
+      } catch {
+        // Use empty array if fetch fails
+      }
+    };
+    fetchSponsors();
+
+    // Refresh sponsors every 60 seconds to get updates
+    const interval = setInterval(fetchSponsors, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch stream configuration from API
+  useEffect(() => {
+    const fetchStreamConfig = async () => {
+      try {
+        const response = await fetch(`${environment.apiUrl}/app-config/stream`, {
+          cache: 'no-cache',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setStreamUrl(data.streamUrl || '');
+          setShowStream(data.showStream ?? false);
+        }
+      } catch {
+        // Use defaults if fetch fails
+      }
+    };
+    fetchStreamConfig();
+
+    // Refresh stream config every 60 seconds to get updates
+    const interval = setInterval(fetchStreamConfig, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Convert YouTube URL to embed format
+  const getYouTubeEmbedUrl = (url: string): string => {
+    if (!url) return '';
+
+    // If already an embed URL, return as is
+    if (url.includes('youtube.com/embed/')) {
+      return url;
+    }
+
+    // Extract video ID from various YouTube URL formats
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+      /youtube\.com\/live\/([^&\n?#]+)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match && match[1]) {
+        return `https://www.youtube.com/embed/${match[1]}`;
+      }
+    }
+
+    // If no pattern matches, return original URL (might be a direct embed URL)
+    return url;
+  };
+
+  // Initialize WebSocket connection for notifications (only if quiz is enabled)
+  useEffect(() => {
+    if (!environment.showQuiz) {
+      return;
+    }
+
+    // Use dedicated WebSocket URL from environment
+    const wsUrl = environment.wsUrl;
+
+    if (!wsUrl) {
+      console.error('[WebSocket] wsUrl not configured in environment');
+      return;
+    }
+
+    const socketUrl = `${wsUrl}/quiz`;
+
+    const newSocket = io(socketUrl, {
+      // Force WebSocket transport for lower latency
+      transports: ['websocket'],
+      upgrade: false,
     });
 
     newSocket.on('connect', () => {
-      console.log('Connected to quiz server for notifications');
-    });
-
-    newSocket.on('question-live', (data: { question: { order_index?: number }; timeRemaining: number }) => {
-      addToast({
-        type: 'info',
-        title: 'New Question is Live!',
-        message: `Question #${(data.question?.order_index ?? 0) + 1} is now active. Join the quiz to participate!`,
-        duration: 8000,
-      });
     });
 
     newSocket.on('question-winner', (data: { winner: { user_name: string; response_time: number }; questionNumber: number }) => {
@@ -165,214 +298,322 @@ export default function Home() {
 
   return (
     <>
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      {environment.showQuiz && <ToastContainer toasts={toasts} onRemove={removeToast} />}
       <div className="home-page">
-      {/* Main Hero Section */}
-      <section className="hero-section">
-        <video 
-          className="hero-video"
-          autoPlay
-          poster="https://cdn.steamstatic.com/apps/dota2/images/dota_react/kez/kez_header_loop_poster.png"
-          preload='auto'
-          loop
-          muted
-          playsInline
-        >
-          <source src="https://cdn.steamstatic.com/apps/dota2/videos/dota_react/kez/kez_header_loop.webm" type="video/webm" />
-        </video>
-        
-        <div className="hero-content">
-          <h1 className="hero-title">
-            <span className="title-word">SUB</span>
-            <span className="title-word">WARS</span>
-            <span className="title-word">V</span>
-          </h1>
-          
-          <h2 className="hero-subheading">THE ULTIMATE SHOWDOWN</h2>
-          
-          <div className="hero-dates">
-            <span className="date-item">13</span>
-            <span className="date-separator">•</span>
-            <span className="date-item">14</span>
-            <span className="date-separator">•</span>
-            <span className="date-item">20</span>
-            <span className="date-separator">•</span>
-            <span className="date-item">21</span>
-            <span className="date-separator">•</span>
-            <span className="date-month">December</span>
-          </div>
-          
-          <div className="hero-description">
-            <span className="hosted-by">Hosted by PasoLL</span>
-            <span className="description-text">, SUB WARS V brings together players and fans for an epic Dota 2 community tournament like never before. This is the biggest open-for-all Dota 2 event of the year — players from Herald to Immortal can participate and experience true competitive action.</span>
-          </div>
-          
-
-          <div className="hero-actions">
-            <a 
-              href="https://forms.gle/bu5rEYGYBc97aszN7" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="hero-button-link"
-            >
-              <Button variant="primary" className="hero-button">
-                REGISTER FOR SUB WARS V
-              </Button>
-            </a>
-            <div className="hero-secondary-buttons">
-              <Link to="/format">
-                <Button variant="default" className="hero-secondary-button">
-                  Format
-                </Button>
-              </Link>
-              <Link to="/faq">
-                <Button variant="default" className="hero-secondary-button">
-                  FAQs
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* Features Container */}
-        <div className="features-container">
-          <h2 className="features-title">The Ultimate Showdown</h2>
-          
-          <p className="features-description">
-          Watch top-tier, exciting gameplay, experience adrenaline-packed matchups, and cheer on your friends as the community comes together for an action-filled SUB WARS V packed with strategy, hype, and unforgettable moments.
-          </p>
-
-          {/* Feature Section 1 - Text Left, Image Right */}
-          <div className="feature-section">
-            <div className="feature-text">
-              <h3 className="feature-section-title">Livestream</h3>
-              <p className="feature-section-description">
-              Join hundreds of viewers as India’s Dota 2 community comes together for a one-of-a-kind event featuring player comms, intense community clashes, and participation from all ranks — from Herald to Immortal.
-              </p>
-            </div>
-            <div className="feature-image">
-              <img src="https://cdn.steamstatic.com/apps/dota2/images/dota_react//winter2023/ward.png" alt="Livestream" />
-            </div>
-          </div>
-
-          {/* Feature Section 2 - Image Left, Text Right */}
-          <div className="feature-section feature-section-reverse">
-            <div className="feature-text">
-              <h3 className="feature-section-title">Guess The Hero & Giveaways</h3>
-              <p className="feature-section-description">
-              Dive into the Guess the Hero Contest during SUB WARS V and win big even without playing in the tournament! Open to the entire community, this contest lets you test your Dota 2 knowledge live, race up the leaderboard, and claim exciting prizes. Stand a chance to win gaming products, Steam Wallet codes, and tons of surprise giveaways.
-              </p>
-            </div>
-            <div className="feature-image">
-              <img src="https://cdn.steamstatic.com/apps/dota2/images/dota_react//springcleaning2025/performance/performance.png" alt="Audience Quiz" />
-            </div>
-          </div>
-
-          {/* Stats Section */}
-          <div className="stats-section">
-            <h2 className="stats-title">SUB WARS By The Numbers</h2>
-            <div className="stats-grid">
-              <div className="stat-item stat-item-featured">
-                <div className="stat-value">₹4,00,000+</div>
-                <div className="stat-label">Cumulative Prize Pool</div>
-              </div>
-              <div className="stat-item">
-                <div className="stat-value">2,00,000+</div>
-                <div className="stat-label">Watch Hours</div>
-              </div>
-              <div className="stat-item">
-                <div className="stat-value">50,000+</div>
-                <div className="stat-label">Total Views</div>
-              </div>
-              <div className="stat-item">
-                <div className="stat-value">15,000+</div>
-                <div className="stat-label">Unique Viewers</div>
-              </div>
-              <div className="stat-item">
-                <div className="stat-value">6,000+</div>
-                <div className="stat-label">Community Members</div>
-              </div>
-              <div className="stat-item">
-                <div className="stat-value">350+</div>
-                <div className="stat-label">Peak Viewers</div>
-              </div>
-              <div className="stat-item">
-                <div className="stat-value">100+</div>
-                <div className="stat-label">Giveaways</div>
+        {/* YouTube Stream Embed - Above Hero Section */}
+        {showStream && streamUrl && (
+          <section className="stream-section">
+            <div className="stream-container">
+              <div className="stream-embed-wrapper">
+                <iframe
+                  src={getYouTubeEmbedUrl(streamUrl)}
+                  title="Live Stream"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="stream-embed"
+                />
               </div>
             </div>
-          </div>
+          </section>
+        )}
 
-          {/* Call to Action Section */}
-          <div className="cta-section">
-            <img 
-              src="https://cdn.steamstatic.com/apps/dota2/images/dota_react/international2024/compendium/5hero_lockup.png" 
-              alt="Hero lockup" 
-              className="cta-bg-image"
-            />
-            <h2 className="cta-main-title">JOIN THE ULTIMATE SHOWDOWN</h2>
-            <p className="cta-main-description">
-            Join hundreds of players from Herald to Immortal in India’s most unique and biggest open-for-all Dota 2 event — SUB WARS V!
+        {/* Main Hero Section */}
+        <section className="hero-section">
+          <video
+            className="hero-video"
+            autoPlay
+            poster="https://cdn.steamstatic.com/apps/dota2/images/dota_react/kez/kez_header_loop_poster.png"
+            preload='auto'
+            loop
+            muted
+            playsInline
+          >
+            <source src="https://cdn.steamstatic.com/apps/dota2/videos/dota_react/kez/kez_header_loop.webm" type="video/webm" />
+          </video>
+
+          <div className="hero-content">
+            <h1 className="hero-title">
+              <span className="title-word">SUB</span>
+              <span className="title-word">WARS</span>
+              <span className="title-word">V</span>
+            </h1>
+
+            <h2 className="hero-subheading">THE ULTIMATE SHOWDOWN</h2>
+
+            <div className="hero-dates">
+              <div className="date-group">
+                <span className="date-day">13</span>
+                <span className="date-month">Dec</span>
+              </div>
+              <span className="date-separator">•</span>
+              <div className="date-group">
+                <span className="date-day">14</span>
+                <span className="date-month">Dec</span>
+              </div>
+              <span className="date-separator">•</span>
+              <div className="date-group">
+                <span className="date-day">20</span>
+                <span className="date-month">Dec</span>
+              </div>
+              <span className="date-separator">•</span>
+              <div className="date-group">
+                <span className="date-day">21</span>
+                <span className="date-month">Dec</span>
+              </div>
+            </div>
+
+
+
+            <div className="hero-description">
+              <span className="hosted-by">Hosted by PasoLL</span>
+              <span className="description-text">, SUB WARS V brings together players and fans for an epic Dota 2 community tournament like never before. This is the biggest open-for-all Dota 2 event of the year — players from Herald to Immortal can participate and experience true competitive action.</span>
+            </div>
+            <div className="hero-prize-pool">
+              <span className="prize-pool-label">Current Prize Pool</span>
+              <span className="prize-pool-value">₹{formatIndianNumber(prizePool.replace(/[₹$€£¥,+\s]/g, ''))}+</span>
+            </div>
+
+            <div className="hero-actions">
+              {environment.showQuiz && (
+                <Link
+                  to={user ? "/quiz-info" : "/login?redirect=/quiz-info"}
+                  className="hero-button-link hero-button-link-secondary"
+                >
+                  <Button variant="primary" className="hero-button hero-button-secondary">
+                    JOIN GUESS THE HERO
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
+          {/* Champions Section */}
+          <section className="team-section" style={{ marginBottom: '-63px' }}>
+            <div className="team-container">
+              <h2 className="team-title">Meet The Champions</h2>
+              <div className="team-grid">
+                <TeamMemberCard
+                  image={teamMember9}
+                  name="Satej &quot;SJ&quot; Juikar"
+                  alt="Satej Juikar"
+                  glowColor={glowColors[0]}
+                />
+                <TeamMemberCard
+                  image={teamMember5}
+                  name="Ankush &quot;Hero for Fun&quot; Chandravanshi"
+                  alt="Ankush Chandravanshi"
+                  glowColor={glowColors[1]}
+                />
+                <TeamMemberCard
+                  image={teamMember8}
+                  name="Ashwin &quot;Frozen&quot; Simha"
+                  alt="Ashwin Simha"
+                  glowColor={glowColors[2]}
+                />
+                <TeamMemberCard
+                  image={teamMember7}
+                  name="Shivam &quot;`Zai~&quot; Parmar"
+                  alt="Shivam Parmar"
+                  glowColor={glowColors[3]}
+                />
+                <TeamMemberCard
+                  image={teamMember10}
+                  name="PRANJAL &quot;TeRRoRR&quot; Keshari"
+                  alt="PRANJAL Keshari"
+                  glowColor={glowColors[4]}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* GUESS THE HERO Contest Section */}
+          {environment.showQuiz && (
+            <section className="guess-hero-section">
+              <div className="guess-hero-container">
+                <div className="guess-hero-content">
+                  <h2 className="guess-hero-title">GUESS THE HERO</h2>
+                  <p className="guess-hero-description">
+                    Test your Dota 2 knowledge in real-time! Listen to hero voice lines, identify the hero,
+                    and compete against other players for the fastest correct answer. Climb the leaderboard
+                    and win exciting prizes including gaming products, Steam Wallet codes, and surprise giveaways.
+                  </p>
+                  <div className="guess-hero-features">
+                    <div className="guess-hero-feature">
+                      <img src="/assets/medals/voicelines.webp" alt="Voice lines" className="feature-icon" />
+                      <span className="feature-text">Real-time voice line challenges</span>
+                    </div>
+                    <div className="guess-hero-feature">
+                      <img src="/assets/medals/spee-scoring.webp" alt="Speed scoring" className="feature-icon" />
+                      <span className="feature-text">Speed-based scoring system</span>
+                    </div>
+                    <div className="guess-hero-feature">
+                      <img src="/assets/medals/leaderboard.webp" alt="Leaderboard" className="feature-icon" />
+                      <span className="feature-text">Live leaderboard rankings</span>
+                    </div>
+                    <div className="guess-hero-feature">
+                      <img src="/assets/medals/prizes.webp" alt="Prizes" className="feature-icon" />
+                      <span className="feature-text">Exciting prizes and giveaways</span>
+                    </div>
+                  </div>
+                  <Link
+                    to={user ? "/quiz-info" : "/login?redirect=/quiz-info"}
+                    className="guess-hero-cta-link"
+                  >
+                    <Button variant="primary" className="guess-hero-cta-button">
+                      JOIN GUESS THE HERO
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Features Container */}
+          <div className="features-container">
+            <h2 className="features-title">The Ultimate Showdown</h2>
+
+            <p className="features-description">
+              Watch top-tier, exciting gameplay, experience adrenaline-packed matchups, and cheer on your friends as the community comes together for an action-filled SUB WARS V packed with strategy, hype, and unforgettable moments.
             </p>
-            <a 
-              href="https://forms.gle/bu5rEYGYBc97aszN7" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="cta-button-link"
-            >
-              <Button variant="primary" className="cta-button">
-              REGISTER FOR SUB WARS V
-              </Button>
-            </a>
-          </div>
-        </div>
-      </section>
 
-      {/* Team Section */}
-      <section className="team-section">
-        <div className="team-container">
-          <h2 className="team-title">Meet The Team</h2>
-          <div className="team-grid">
-            <TeamMemberCard 
-              image={teamMember1} 
-              name="Omkar &quot;PasoLL&quot; Urunkar" 
-              alt="Omkar Urunkar"
-              glowColor={glowColors[0]}
-            />
-            <TeamMemberCard 
-              image={teamMember2} 
-              name="Parth &quot;Fake_PasoLL&quot; Jansari" 
-              alt="Parth Jansari"
-              glowColor={glowColors[1]}
-            />
-            <TeamMemberCard 
-              image={teamMember3} 
-              name="Omkar &quot;$iNG]-[aM&quot; Khopkar" 
-              alt="Omkar Khopkar"
-              glowColor={glowColors[2]}
-            />
-            <TeamMemberCard 
-              image={teamMember4} 
-              name="Omkar &quot;Illidan Stormage&quot; Dhende" 
-              alt="Omkar Dhende"
-              glowColor={glowColors[3]}
-            />
-            <TeamMemberCard 
-              image={teamMember5} 
-              name="Purujit &quot;Odawg&quot; Chaturvedi" 
-              alt="Purujit Chaturvedi"
-              glowColor={glowColors[4]}
-            />
-            <TeamMemberCard 
-              image={teamMember6} 
-              name="Rohit &quot;Slappy&quot; Deshpande" 
-              alt="Rohit Deshpande"
-              glowColor={glowColors[5]}
-            />
+            {/* Feature Section 1 - Text Left, Image Right */}
+            <div className="feature-section">
+              <div className="feature-text">
+                <h3 className="feature-section-title">Livestream</h3>
+                <p className="feature-section-description">
+                  Join hundreds of viewers as India’s Dota 2 community comes together for a one-of-a-kind event featuring player comms, intense community clashes, and participation from all ranks — from Herald to Immortal.
+                </p>
+              </div>
+              <div className="feature-image">
+                <img src="https://cdn.steamstatic.com/apps/dota2/images/dota_react//winter2023/ward.png" alt="Livestream" />
+              </div>
+            </div>
+
+            {/* Feature Section 2 - Image Left, Text Right (Only show if quiz is enabled) */}
+            {environment.showQuiz && (
+              <div className="feature-section feature-section-reverse">
+                <div className="feature-text">
+                  <h3 className="feature-section-title">GUESS THE HERO & Giveaways</h3>
+                  <p className="feature-section-description">
+                    Dive into the GUESS THE HERO Contest during SUB WARS V and win big even without playing in the tournament! Open to the entire community, this contest lets you test your Dota 2 knowledge live, race up the leaderboard, and claim exciting prizes. Stand a chance to win gaming products, Steam Wallet codes, and tons of surprise giveaways.
+                  </p>
+                </div>
+                <div className="feature-image">
+                  <img src="https://cdn.steamstatic.com/apps/dota2/images/dota_react//springcleaning2025/performance/performance.png" alt="Audience Contest" />
+                </div>
+              </div>
+            )}
+
+            {/* Stats Section */}
+            <div className="stats-section">
+              <h2 className="stats-title">SUB WARS By The Numbers</h2>
+              <div className="stats-grid">
+                <div className="stat-item stat-item-featured">
+                  <div className="stat-value">₹4,00,000+</div>
+                  <div className="stat-label">Cumulative Prize Pool</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">2,00,000+</div>
+                  <div className="stat-label">Watch Hours</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">50,000+</div>
+                  <div className="stat-label">Total Views</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">15,000+</div>
+                  <div className="stat-label">Unique Viewers</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">6,000+</div>
+                  <div className="stat-label">Community Members</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">350+</div>
+                  <div className="stat-label">Peak Viewers</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">100+</div>
+                  <div className="stat-label">Giveaways</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Call to Action Section */}
+            <div className="cta-section">
+              <img
+                src="https://cdn.steamstatic.com/apps/dota2/images/dota_react/international2024/compendium/5hero_lockup.png"
+                alt="Hero lockup"
+                className="cta-bg-image"
+              />
+              <h2 className="cta-main-title">JOIN THE ULTIMATE SHOWDOWN</h2>
+              <p className="cta-main-description">
+                Join hundreds of players from Herald to Immortal in India’s most unique and biggest open-for-all Dota 2 event — SUB WARS V!
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
-    </div>
+        </section>
+
+        {/* Sponsors Section */}
+        {sponsors.length > 0 && (
+          <section className="sponsors-section">
+            <div className="sponsors-container">
+              <h2 className="sponsors-title">Our Sponsors</h2>
+              <div className="sponsors-grid">
+                {sponsors.map((sponsor) => (
+                  <div key={`${sponsor.name}-${sponsor.order}`} className="sponsor-card">
+                    <div className="sponsor-name">{sponsor.name}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Team Section */}
+        <section className="team-section">
+          <div className="team-container">
+            <h2 className="team-title">Meet The Team</h2>
+            <div className="team-grid">
+              <TeamMemberCard
+                image={teamMember1}
+                name="Omkar &quot;PasoLL&quot; Urunkar"
+                alt="Omkar Urunkar"
+                glowColor={glowColors[0]}
+              />
+              <TeamMemberCard
+                image={teamMember2}
+                name="Parth &quot;Fake_PasoLL&quot; Jansari"
+                alt="Parth Jansari"
+                glowColor={glowColors[1]}
+              />
+              <TeamMemberCard
+                image={teamMember3}
+                name="Omkar &quot;$iNG]-[aM&quot; Khopkar"
+                alt="Omkar Khopkar"
+                glowColor={glowColors[2]}
+              />
+              <TeamMemberCard
+                image={teamMember4}
+                name="Omkar &quot;Illidan Stormage&quot; Dhende"
+                alt="Omkar Dhende"
+                glowColor={glowColors[3]}
+              />
+              <TeamMemberCard
+                image={teamMember5}
+                name="Purujit &quot;Odawg&quot; Chaturvedi"
+                alt="Purujit Chaturvedi"
+                glowColor={glowColors[4]}
+              />
+              <TeamMemberCard
+                image={teamMember6}
+                name="Rohit &quot;Slappy&quot; Deshpande"
+                alt="Rohit Deshpande"
+                glowColor={glowColors[5]}
+              />
+            </div>
+          </div>
+        </section>
+      </div>
     </>
   );
 }

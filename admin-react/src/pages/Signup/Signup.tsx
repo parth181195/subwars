@@ -40,14 +40,27 @@ export default function SignupPage() {
       return;
     }
 
-    if (!environment.allowedAdminEmails.includes(email)) {
-      setError('This email is not authorized for admin access. Please contact an administrator.');
-      return;
-    }
-
     setLoading(true);
 
     try {
+      // Validate email authorization via backend
+      const validateResponse = await fetch(`${environment.apiBaseUrl}/api/admin/users/validate-signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const validateResult = await validateResponse.json();
+
+      if (!validateResult.authorized) {
+        setError(validateResult.message || 'This email is not authorized for admin access. Please contact an administrator to invite you.');
+        setLoading(false);
+        return;
+      }
+
+      // Proceed with Firebase Auth signup
       await adminAuthService.signUp(email, password);
       setSuccess('Account created successfully! Please check your email to confirm your account, then sign in.');
       
@@ -74,13 +87,13 @@ export default function SignupPage() {
         </div>
 
         {error && (
-          <Flash variant="danger" sx={{ mb: 3 }}>
+          <Flash variant="danger" className="error-message">
             {error}
           </Flash>
         )}
 
         {success && (
-          <Flash variant="success" sx={{ mb: 3 }}>
+          <Flash variant="success" className="success-message">
             {success}
           </Flash>
         )}
@@ -99,7 +112,7 @@ export default function SignupPage() {
             />
           </FormControl>
 
-          <FormControl required sx={{ mt: 3 }}>
+          <FormControl required className="signup-form-group">
             <FormControl.Label htmlFor="password">Password</FormControl.Label>
             <TextInput
               id="password"
@@ -113,7 +126,7 @@ export default function SignupPage() {
             />
           </FormControl>
 
-          <FormControl required sx={{ mt: 3 }}>
+          <FormControl required className="signup-form-group">
             <FormControl.Label htmlFor="confirmPassword">Confirm Password</FormControl.Label>
             <TextInput
               id="confirmPassword"

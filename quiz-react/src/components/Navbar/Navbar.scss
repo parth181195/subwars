@@ -94,11 +94,104 @@
     }
   }
 
+  .navbar-menu-button {
+    display: none;
+    background: transparent;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #8b949e;
+    padding: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+
+    @media (max-width: 768px) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    &:hover {
+      background-color: rgba(102, 192, 244, 0.1);
+      border-color: #66c0f4;
+      color: #66c0f4;
+    }
+  }
+
   .navbar-actions {
     display: flex;
     align-items: center;
     gap: 12px;
     flex-shrink: 0;
+  }
+
+  .websocket-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background-color: rgba(102, 192, 244, 0.05);
+    border: 1px solid rgba(102, 192, 244, 0.2);
+
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      position: relative;
+      flex-shrink: 0;
+
+      &.connected {
+        background-color: #238636;
+        box-shadow: 0 0 8px rgba(35, 134, 54, 0.6);
+
+        &::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          transform: translate(-50%, -50%);
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          background-color: #238636;
+          animation: pulse 2s infinite;
+        }
+      }
+
+      &.disconnected {
+        background-color: #8b949e;
+      }
+    }
+
+    .connection-status {
+      font-size: 12px;
+      font-weight: 500;
+      color: #8b949e;
+      font-family: 'Radiance', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      transition: color 0.2s ease;
+    }
+
+    &.connected .connection-status {
+      color: #238636;
+    }
+
+    @media (max-width: 768px) {
+      .connection-status {
+        display: none;
+      }
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: translate(-50%, -50%) scale(1.5);
+    }
   }
 
   .login-button {
@@ -210,11 +303,23 @@
   @media (max-width: 768px) {
     .navbar-container {
       padding: 0 16px;
-      gap: 16px;
+      gap: 12px;
     }
 
-    .navbar-logo .logo-text {
-      font-size: 20px;
+    .navbar-logo {
+      gap: 12px;
+
+      .navbar-logo-image {
+        height: 32px;
+      }
+
+      .logo-text {
+        font-size: 18px;
+      }
+    }
+
+    .navbar-actions {
+      gap: 8px;
     }
 
     .login-button {
@@ -222,6 +327,14 @@
       font-size: 13px;
 
       span {
+        display: none;
+      }
+    }
+
+    .profile-button {
+      padding: 6px 8px;
+
+      .profile-name {
         display: none;
       }
     }

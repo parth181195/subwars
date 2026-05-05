@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { adminAuthService } from './services/auth';
 import LoginPage from './pages/Login/Login';
 import SignupPage from './pages/Signup/Signup';
@@ -9,6 +9,10 @@ import Settings from './pages/Settings/Settings';
 import Quizzes from './pages/Quizzes/Quizzes';
 import QuizDetail from './pages/QuizDetail/QuizDetail';
 import Answers from './pages/Answers/Answers';
+import Overlay from './pages/Overlay/Overlay';
+import CombinedLeaderboard from './pages/CombinedLeaderboard/CombinedLeaderboard';
+import Users from './pages/Users/Users';
+import ToastContainer, { useToast } from './components/Toast/ToastContainer';
 
 type User = {
   id: string;
@@ -16,23 +20,45 @@ type User = {
   [key: string]: any;
 };
 
+function ProtectedRoute({ children, user }: { children: React.ReactNode; user: User | null }) {
+  const location = useLocation();
+  
+  if (!user) {
+    // Preserve the current route in state so we can redirect back after login
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  
+  return <>{children}</>;
+}
+
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toasts, removeToast } = useToast();
 
   useEffect(() => {
     let isMounted = true;
+    let unsubscribe: (() => void) | undefined;
     
-    const unsubscribe = adminAuthService.subscribe((currentUser) => {
+    // Wait for auth initialization before setting up listener
+    // This ensures we know the auth state before rendering routes
+    adminAuthService.waitForInit().then(() => {
       if (isMounted) {
-        setUser(currentUser);
-        setLoading(false);
+        // Now subscribe - the listener will be called immediately with current state
+        unsubscribe = adminAuthService.subscribe((currentUser) => {
+          if (isMounted) {
+            setUser(currentUser);
+            setLoading(false);
+          }
+        });
       }
     });
-
+    
     return () => {
       isMounted = false;
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, []);
 
@@ -52,6 +78,8 @@ function App() {
   }
 
   return (
+    <>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={
@@ -61,49 +89,58 @@ function App() {
           user ? <Navigate to="/dashboard" replace /> : <SignupPage />
         } />
         <Route path="/dashboard" element={
-          user ? (
+          <ProtectedRoute user={user}>
             <DashboardLayout>
               <Dashboard />
             </DashboardLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
+          </ProtectedRoute>
         } />
         <Route path="/settings" element={
-          user ? (
+          <ProtectedRoute user={user}>
             <DashboardLayout>
               <Settings />
             </DashboardLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
+          </ProtectedRoute>
         } />
         <Route path="/quizzes" element={
-          user ? (
+          <ProtectedRoute user={user}>
             <DashboardLayout>
               <Quizzes />
             </DashboardLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
+          </ProtectedRoute>
         } />
         <Route path="/quizzes/:id" element={
-          user ? (
+          <ProtectedRoute user={user}>
             <DashboardLayout>
               <QuizDetail />
             </DashboardLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
+          </ProtectedRoute>
         } />
         <Route path="/quizzes/:id/questions/:questionId/answers" element={
-          user ? (
+          <ProtectedRoute user={user}>
             <DashboardLayout>
               <Answers />
             </DashboardLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
+          </ProtectedRoute>
+        } />
+        <Route path="/overlay" element={
+          <ProtectedRoute user={user}>
+            <Overlay />
+          </ProtectedRoute>
+        } />
+        <Route path="/leaderboard" element={
+          <ProtectedRoute user={user}>
+            <DashboardLayout>
+              <CombinedLeaderboard />
+            </DashboardLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/users" element={
+          <ProtectedRoute user={user}>
+            <DashboardLayout>
+              <Users />
+            </DashboardLayout>
+          </ProtectedRoute>
         } />
         <Route path="*" element={
           user ? (
@@ -114,6 +151,7 @@ function App() {
         } />
       </Routes>
     </BrowserRouter>
+    </>
   );
 }
 

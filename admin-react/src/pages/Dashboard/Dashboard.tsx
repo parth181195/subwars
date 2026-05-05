@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@primer/react';
+import LoadingSpinner from '../../components/LoadingSpinner/LoadingSpinner';
 import './Dashboard.scss';
 
 export default function Dashboard() {
@@ -18,9 +19,7 @@ export default function Dashboard() {
       <h1 className="dashboard-title">Dashboard</h1>
       
       {loading ? (
-        <div className="loading-container">
-          <p>Loading dashboard data...</p>
-        </div>
+        <LoadingSpinner message="Loading dashboard data..." fullPage />
       ) : (
         <>
           {/* Stats Cards */}

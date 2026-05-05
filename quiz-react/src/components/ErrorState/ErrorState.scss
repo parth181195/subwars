@@ -1,0 +1,58 @@
+.error-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 200px);
+  padding: 2rem;
+
+  .error-state-container {
+    text-align: center;
+    max-width: 500px;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    .error-state-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      color: rgba(239, 68, 68, 0.8);
+    }
+
+    .error-state-title {
+      font-size: 2rem;
+      font-weight: 600;
+      margin: 0 0 1rem 0;
+      color: #ffffff;
+    }
+
+    .error-state-message {
+      font-size: 1rem;
+      color: rgba(255, 255, 255, 0.7);
+      margin: 0 0 2rem 0;
+      line-height: 1.6;
+    }
+
+    .error-state-button {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 500;
+      color: #ffffff;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      }
+
+      &:active {
+        transform: translateY(0);
+      }
+    }
+  }
+}
+

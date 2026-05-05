@@ -32,7 +32,7 @@ export default function ViewAnswersDialog({ answers, onClose }: ViewAnswersDialo
                 <th>User</th>
                 <th>Answer</th>
                 <th>Correct</th>
-                <th>Response Time (ms)</th>
+                <th>Response Time (s)</th>
                 <th>Score</th>
                 <th>Submitted At</th>
               </tr>
@@ -48,7 +48,7 @@ export default function ViewAnswersDialog({ answers, onClose }: ViewAnswersDialo
                     <td>{answer.user_id}</td>
                     <td>{answer.answer}</td>
                     <td>{answer.is_correct ? '✓' : '✗'}</td>
-                    <td>{answer.response_time || 'N/A'}</td>
+                    <td>{answer.response_time ? ((answer.response_time / 1000).toFixed(2) + 's') : 'N/A'}</td>
                     <td>{answer.score}</td>
                     <td>{new Date(answer.submitted_at).toLocaleString()}</td>
                   </tr>

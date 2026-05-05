@@ -1,4 +1,5 @@
 import { environment } from '../config/environment';
+import { authenticatedFetch } from '../utils/api-client';
 
 const API_BASE_URL = environment.apiUrl;
 
@@ -8,6 +9,7 @@ export interface Quiz {
   description?: string;
   scheduled_at?: string;
   status: 'draft' | 'live' | 'paused' | 'completed';
+  has_email_restriction?: boolean; // Indicates if quiz has email restrictions
   created_at: string;
   updated_at: string;
 }
@@ -47,23 +49,36 @@ export interface AnswerSubmission {
 
 class QuizService {
   /**
-   * Get all active quizzes
+   * Get all active quizzes (public endpoint)
    */
   async getActiveQuizzes(): Promise<Quiz[]> {
-    const response = await fetch(`${API_BASE_URL}/admin/quizzes`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch quizzes: ${response.statusText}`);
+    try {
+      const response = await fetch(`${API_BASE_URL}/quiz/active`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => response.statusText);
+        throw new Error(`Failed to fetch quizzes: ${response.status} ${errorText}`);
+      }
+      
+      return response.json();
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        throw new Error(`Network error: Unable to connect to API at ${API_BASE_URL}. Please check if the server is running.`);
+      }
+      throw error;
     }
-    const quizzes = await response.json();
-    // Filter for live quizzes only
-    return quizzes.filter((quiz: Quiz) => quiz.status === 'live');
   }
 
   /**
    * Get a specific quiz by ID (public endpoint)
    */
   async getQuizById(quizId: string): Promise<Quiz> {
-    const response = await fetch(`${API_BASE_URL}/admin/quizzes/${quizId}`);
+    const response = await fetch(`${API_BASE_URL}/quiz/${quizId}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch quiz: ${response.statusText}`);
     }
@@ -99,11 +114,11 @@ class QuizService {
    * Keeping this for future REST endpoint if needed
    */
   async submitAnswer(
-    quizId: string,
-    questionId: string,
-    answer: string,
-    responseTime?: number,
-    userId?: string
+    _quizId: string,
+    _questionId: string,
+    _answer: string,
+    _responseTime?: number,
+    _userId?: string
   ): Promise<{ is_correct: boolean; score: number; message: string }> {
     // For now, answers are submitted via WebSocket
     // This method is kept for potential REST endpoint in the future
@@ -127,12 +142,37 @@ class QuizService {
   }
 
   /**
-   * Get leaderboard for a quiz
+   * Get leaderboard for a quiz (public endpoint, but includes auth header if authenticated)
    */
   async getQuizLeaderboard(quizId: string): Promise<LeaderboardEntry[]> {
-    const response = await fetch(`${API_BASE_URL}/admin/quizzes/${quizId}/leaderboard`);
+    // Use authenticated fetch to include auth header if user is logged in
+    const response = await authenticatedFetch(`${API_BASE_URL}/quiz/${quizId}/leaderboard`);
     if (!response.ok) {
       throw new Error(`Failed to fetch leaderboard: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Get user's answer for a specific question (requires auth)
+   */
+  async getUserAnswer(questionId: string): Promise<{
+    answer: {
+      id: string;
+      user_id: string;
+      question_id: string;
+      answer: string;
+      is_correct: boolean;
+      score: number;
+      attempt_count: number;
+      submitted_at: string;
+    } | null;
+    hasAnswer: boolean;
+    attemptsExhausted: boolean;
+  }> {
+    const response = await authenticatedFetch(`${API_BASE_URL}/quiz/questions/${questionId}/user-answer`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user answer: ${response.statusText}`);
     }
     return response.json();
   }

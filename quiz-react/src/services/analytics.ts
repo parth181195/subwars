@@ -15,7 +15,6 @@ class AnalyticsService {
    */
   initialize(measurementId: string) {
     if (this.isInitialized || !measurementId) {
-      console.warn('[Analytics] Already initialized or missing measurement ID', { isInitialized: this.isInitialized, measurementId });
       return;
     }
 
@@ -23,7 +22,6 @@ class AnalyticsService {
     if (window.gtag && window.dataLayer) {
       this.measurementId = measurementId;
       this.isInitialized = true;
-      console.log('[Analytics] Google Analytics already loaded from HTML, initialized service', measurementId);
       
       // Track initial page view
       this.trackPageView();
@@ -55,21 +53,18 @@ class AnalyticsService {
     script.async = true;
     script.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
     
-    // Optional: Log when script loads for debugging
     script.onload = () => {
-      console.log('[Analytics] Google Analytics script loaded', measurementId);
       // Track initial page view after script loads
       this.trackPageView();
     };
     
     script.onerror = () => {
-      console.error('[Analytics] Failed to load Google Analytics script', measurementId);
+      // Failed to load Google Analytics script
     };
     
     document.head.appendChild(script);
 
     this.isInitialized = true;
-    console.log('[Analytics] Initialized Google Analytics', measurementId);
   }
 
   /**

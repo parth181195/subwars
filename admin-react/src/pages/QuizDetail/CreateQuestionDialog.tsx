@@ -1,19 +1,27 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, FormControl, Button, TextInput, SelectPanel } from '@primer/react';
 import { TriangleDownIcon } from '@primer/octicons-react';
 import AudioPlayer from '../../components/AudioPlayer/AudioPlayer';
+import { environment } from '../../config/environment';
 import './CreateQuestionDialog.scss';
+
+interface HeroInfo {
+  hero: string;
+  url: string;
+}
+
+interface VoiceLine {
+  name: string;
+  link: string;
+  category: string;
+  bunnyCdnLink?: string;
+  bunnyCdnPath?: string;
+}
 
 interface VoiceLineData {
   hero: string;
   url: string;
-  voiceLines: Array<{
-    name: string;
-    link: string;
-    category: string;
-    bunnyCdnLink?: string;
-    bunnyCdnPath?: string;
-  }>;
+  voiceLines: VoiceLine[];
 }
 
 interface NewQuestion {
@@ -47,9 +55,11 @@ interface CreateQuestionDialogProps {
   setQuestionFile: (file: File | null) => void;
   answerFile: File | null;
   setAnswerFile: (file: File | null) => void;
-  voiceLinesData: VoiceLineData[];
+  heroes: HeroInfo[];
   editingQuestion?: QuizQuestion | null;
 }
+
+const API_BASE_URL = environment.apiBaseUrl;
 
 export default function CreateQuestionDialog({
   isOpen,
@@ -57,11 +67,11 @@ export default function CreateQuestionDialog({
   onSubmit,
   newQuestion,
   setNewQuestion,
-  questionFile,
+  questionFile: _questionFile,
   setQuestionFile,
-  answerFile,
+  answerFile: _answerFile,
   setAnswerFile,
-  voiceLinesData,
+  heroes,
   editingQuestion,
 }: CreateQuestionDialogProps) {
   const [questionTypeOpen, setQuestionTypeOpen] = useState(false);
@@ -72,12 +82,70 @@ export default function CreateQuestionDialog({
   const [voiceLineSelectFilter, setVoiceLineSelectFilter] = useState('');
   const [heroImageSelectOpen, setHeroImageSelectOpen] = useState(false);
   const [heroImageSelectFilter, setHeroImageSelectFilter] = useState('');
+  
+  // Cache for voice lines per hero (to avoid re-fetching)
+  const voiceLinesCache = useRef<Map<string, VoiceLineData>>(new Map());
+  const [loadingVoiceLines, setLoadingVoiceLines] = useState<string | null>(null);
   const voiceLineUrlMap = useRef<Map<string, string>>(new Map());
 
+  // Fetch voice lines for a hero on-demand
+  const fetchVoiceLinesForHero = async (heroName: string): Promise<VoiceLineData | null> => {
+    // Check cache first
+    if (voiceLinesCache.current.has(heroName)) {
+      return voiceLinesCache.current.get(heroName) || null;
+    }
+
+    // Fetch from API
+    setLoadingVoiceLines(heroName);
+    try {
+      const encodedHeroName = encodeURIComponent(heroName);
+      const response = await fetch(`${API_BASE_URL}/api/voice-lines/hero/${encodedHeroName}`);
+      
+      if (!response.ok) {
+        console.error(`Failed to fetch voice lines for ${heroName}:`, response.statusText);
+        return null;
+      }
+
+      const data = await response.json();
+      const voiceLineData: VoiceLineData = {
+        hero: data.hero,
+        url: data.url,
+        voiceLines: data.voiceLines || [],
+      };
+
+      // Cache it
+      voiceLinesCache.current.set(heroName, voiceLineData);
+      
+      // Update hero URL in the heroes list if needed
+      // (Hero URL is optional and mainly used for display)
+      
+      return voiceLineData;
+    } catch (error) {
+      console.error(`Error fetching voice lines for ${heroName}:`, error);
+      return null;
+    } finally {
+      setLoadingVoiceLines(null);
+    }
+  };
+
+  // Load voice lines when hero is selected
+  useEffect(() => {
+    if (newQuestion.correct_answer_hero && !voiceLinesCache.current.has(newQuestion.correct_answer_hero)) {
+      fetchVoiceLinesForHero(newQuestion.correct_answer_hero);
+    }
+  }, [newQuestion.correct_answer_hero]);
+
+  // When editing a question, ensure voice lines are loaded if it's a voice line question
+  useEffect(() => {
+    if (editingQuestion && editingQuestion.question_type === 'voice_line' && editingQuestion.correct_answer_hero) {
+      if (!voiceLinesCache.current.has(editingQuestion.correct_answer_hero)) {
+        fetchVoiceLinesForHero(editingQuestion.correct_answer_hero);
+      }
+    }
+  }, [editingQuestion]);
+
   const getHeroes = (searchTerm: string = '') => {
-    const heroes = new Set<string>();
-    voiceLinesData.forEach(heroData => heroes.add(heroData.hero));
-    const heroList = Array.from(heroes).sort();
+    const heroList = heroes.map(h => h.hero).sort();
     
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase();
@@ -106,9 +174,9 @@ export default function CreateQuestionDialog({
     );
   };
 
-  const getVoiceLinesForHero = (heroName: string) => {
-    const heroData = voiceLinesData.find(h => h.hero === heroName);
-    return heroData?.voiceLines || [];
+  const getVoiceLinesForHero = (heroName: string): VoiceLine[] => {
+    const cached = voiceLinesCache.current.get(heroName);
+    return cached?.voiceLines || [];
   };
 
   const getVoiceLineItems = (heroName: string) => {
@@ -122,7 +190,19 @@ export default function CreateQuestionDialog({
         id,
         text: vl.name,
         groupId: vl.category,
+        url, // Store URL in the item for easier lookup
       };
+    });
+  };
+
+  // Helper to find voice line item by URL (reverse lookup)
+  const findVoiceLineByUrl = (heroName: string, url: string) => {
+    if (!url || !heroName) return undefined;
+    const items = getVoiceLineItems(heroName);
+    // Find by checking if the URL in the map matches, or if the item's url property matches
+    return items.find(item => {
+      const mappedUrl = voiceLineUrlMap.current.get(item.id);
+      return mappedUrl === url || (item as any).url === url;
     });
   };
 
@@ -147,6 +227,9 @@ export default function CreateQuestionDialog({
 
   if (!isOpen) return null;
 
+  const isVoiceLinesLoading = loadingVoiceLines === newQuestion.correct_answer_hero;
+  const voiceLinesForHero = getVoiceLinesForHero(newQuestion.correct_answer_hero);
+
   return (
     <Dialog
       title={editingQuestion ? "Edit Question" : "Create New Question"}
@@ -156,16 +239,19 @@ export default function CreateQuestionDialog({
           <FormControl required>
             <FormControl.Label>Question Type</FormControl.Label>
             <SelectPanel
-              renderAnchor={({ children, ...anchorProps }) => (
-                <Button
-                  trailingAction={TriangleDownIcon}
-                  {...anchorProps}
-                  aria-haspopup="dialog"
-                  block
-                >
-                  {children || (newQuestion.question_type === 'voice_line' ? 'Voice Line' : newQuestion.question_type === 'image' ? 'Image' : 'Select question type')}
-                </Button>
-              )}
+              renderAnchor={({ children, ...anchorProps }: any) => {
+                const { validationStatus, ...buttonProps } = anchorProps;
+                return (
+                  <Button
+                    trailingAction={TriangleDownIcon}
+                    {...buttonProps}
+                    aria-haspopup="dialog"
+                    block
+                  >
+                    {children || (newQuestion.question_type === 'voice_line' ? 'Voice Line' : newQuestion.question_type === 'image' ? 'Image' : 'Select question type')}
+                  </Button>
+                );
+              }}
               placeholder="Select question type"
               open={questionTypeOpen}
               onOpenChange={setQuestionTypeOpen}
@@ -196,16 +282,19 @@ export default function CreateQuestionDialog({
               <FormControl required>
                 <FormControl.Label>Select Hero</FormControl.Label>
                 <SelectPanel
-                  renderAnchor={({ children, ...anchorProps }) => (
-                    <Button
-                      trailingAction={TriangleDownIcon}
-                      {...anchorProps}
-                      aria-haspopup="dialog"
-                      block
-                    >
-                      {children || (newQuestion.correct_answer_hero || 'Select hero')}
-                    </Button>
-                  )}
+                  renderAnchor={({ children, ...anchorProps }: any) => {
+                    const { validationStatus, ...buttonProps } = anchorProps;
+                    return (
+                      <Button
+                        trailingAction={TriangleDownIcon}
+                        {...buttonProps}
+                        aria-haspopup="dialog"
+                        block
+                      >
+                        {children || (newQuestion.correct_answer_hero || 'Select hero')}
+                      </Button>
+                    );
+                  }}
                   placeholder="Select hero"
                   open={heroSelectOpen}
                   onOpenChange={setHeroSelectOpen}
@@ -230,35 +319,40 @@ export default function CreateQuestionDialog({
               {newQuestion.correct_answer_hero && (
                 <>
                   <FormControl required>
-                    <FormControl.Label id="voice-line-autocomplete-label">Select Voice Line</FormControl.Label>
+                    <FormControl.Label id="voice-line-autocomplete-label">
+                      Select Voice Line
+                      {isVoiceLinesLoading && <span style={{ marginLeft: '8px', fontSize: '12px', color: '#8b949e' }}>(Loading...)</span>}
+                    </FormControl.Label>
                     <SelectPanel
-                      renderAnchor={({ children, ...anchorProps }) => {
-                        const displayText = children || (newQuestion.voice_line_url ? getVoiceLineItems(newQuestion.correct_answer_hero).find(vl => voiceLineUrlMap.current.get(vl.id) === newQuestion.voice_line_url)?.text || 'Select voice line' : 'Select voice line');
+                      renderAnchor={({ children, ...anchorProps }: any) => {
+                        const { validationStatus, ...buttonProps } = anchorProps;
+                        const displayText = children || (newQuestion.voice_line_url ? findVoiceLineByUrl(newQuestion.correct_answer_hero, newQuestion.voice_line_url)?.text || 'Select voice line' : 'Select voice line');
                         const truncatedText = typeof displayText === 'string' && displayText.length > 60 
                           ? displayText.substring(0, 60) + '...' 
                           : displayText;
                         return (
                           <Button
                             trailingAction={TriangleDownIcon}
-                            {...anchorProps}
+                            {...buttonProps}
                             aria-haspopup="dialog"
                             block
+                            disabled={isVoiceLinesLoading || voiceLinesForHero.length === 0}
                             style={{
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {truncatedText}
+                            {isVoiceLinesLoading ? 'Loading voice lines...' : truncatedText}
                           </Button>
                         );
                       }}
-                      placeholder="Select voice line"
-                      open={voiceLineSelectOpen}
+                      placeholder={isVoiceLinesLoading ? "Loading voice lines..." : "Select voice line"}
+                      open={voiceLineSelectOpen && !isVoiceLinesLoading}
                       onOpenChange={setVoiceLineSelectOpen}
                       items={getFilteredVoiceLineItems(newQuestion.correct_answer_hero)}
                       groupMetadata={getVoiceLineGroupMetadata(newQuestion.correct_answer_hero)}
-                      selected={newQuestion.voice_line_url ? getVoiceLineItems(newQuestion.correct_answer_hero).find(vl => voiceLineUrlMap.current.get(vl.id) === newQuestion.voice_line_url) : undefined}
+                      selected={newQuestion.voice_line_url ? findVoiceLineByUrl(newQuestion.correct_answer_hero, newQuestion.voice_line_url) : undefined}
                       onSelectedChange={(selected: { id?: string | number; text?: string } | { id?: string | number; text?: string }[] | undefined) => {
                         if (selected && !Array.isArray(selected) && 'id' in selected && typeof selected.id === 'string') {
                           const voiceLineUrl = voiceLineUrlMap.current.get(selected.id);
@@ -314,16 +408,19 @@ export default function CreateQuestionDialog({
               <FormControl required>
                 <FormControl.Label id="hero-autocomplete-image-label">Correct Answer Hero</FormControl.Label>
                 <SelectPanel
-                  renderAnchor={({ children, ...anchorProps }) => (
-                    <Button
-                      trailingAction={TriangleDownIcon}
-                      {...anchorProps}
-                      aria-haspopup="dialog"
-                      block
-                    >
-                      {children || (newQuestion.correct_answer_hero || 'Select hero')}
-                    </Button>
-                  )}
+                  renderAnchor={({ children, ...anchorProps }: any) => {
+                    const { validationStatus, ...buttonProps } = anchorProps;
+                    return (
+                      <Button
+                        trailingAction={TriangleDownIcon}
+                        {...buttonProps}
+                        aria-haspopup="dialog"
+                        block
+                      >
+                        {children || (newQuestion.correct_answer_hero || 'Select hero')}
+                      </Button>
+                    );
+                  }}
                   placeholder="Select hero"
                   open={heroImageSelectOpen}
                   onOpenChange={setHeroImageSelectOpen}
@@ -416,4 +513,3 @@ export default function CreateQuestionDialog({
     />
   );
 }
-

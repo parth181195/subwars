@@ -175,15 +175,6 @@ export default function Format() {
         {/* Call to Action */}
         <div className="format-cta">
           <h3>Ready to Participate?</h3>
-          <p>Register now to secure your spot in SUB WARS V!</p>
-          <a 
-            href="https://forms.gle/bu5rEYGYBc97aszN7" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="cta-button"
-          >
-            Register for SUB WARS V
-          </a>
         </div>
       </div>
     </div>

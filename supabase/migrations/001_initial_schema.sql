@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS answers (
   is_correct BOOLEAN DEFAULT FALSE,
   response_time INTEGER, -- Time taken to answer in milliseconds (from question start)
   score INTEGER DEFAULT 0, -- Calculated score: 100 base + up to 900 speed bonus
+  attempt_count INTEGER DEFAULT 1, -- Number of attempts for this question (max 3)
   submitted_at TIMESTAMPTZ DEFAULT NOW(),
   
   -- One answer per user per question
@@ -185,6 +186,18 @@ CREATE INDEX IF NOT EXISTS idx_answers_submitted_at ON answers(submitted_at);
 CREATE INDEX IF NOT EXISTS idx_answers_quiz_question ON answers(quiz_id, question_id, submitted_at);
 CREATE INDEX IF NOT EXISTS idx_answers_score ON answers(quiz_id, score DESC); -- For leaderboard queries
 CREATE INDEX IF NOT EXISTS idx_answers_user_quiz ON answers(user_id, quiz_id, score DESC); -- For user leaderboard
+
+-- =====================================================
+-- Update Answers Table Schema (if old schema exists)
+-- =====================================================
+-- Add attempt_count column if it doesn't exist
+ALTER TABLE answers 
+  ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 1;
+
+-- Update existing answers to have attempt_count = 1 if NULL
+UPDATE answers
+SET attempt_count = 1
+WHERE attempt_count IS NULL;
 
 -- =====================================================
 -- Voice Lines Table

@@ -12,10 +12,13 @@ import { Server, Socket } from 'socket.io';
 import { Logger, Inject, forwardRef, OnModuleDestroy } from '@nestjs/common';
 import { QuizService } from './quiz.service';
 import { AnswerService } from '../answer/answer.service';
+import { UserService } from '../user/user.service';
+import { QuizAutoModeService } from './quiz-auto-mode.service';
 
 interface QuizJoinData {
   quizId: string;
   userId?: string;
+  isAdmin?: boolean; // Flag to distinguish admin clients from quiz app clients
 }
 
 interface AnswerSubmissionData {
@@ -47,11 +50,16 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   private readonly LEADERBOARD_UPDATE_THROTTLE = 2000; // Update at most once every 2 seconds
   private readonly LEADERBOARD_CACHE_TTL = 1000; // Cache for 1 second
 
+  private nextQuestionTimeInterval: NodeJS.Timeout | null = null;
+
   constructor(
     @Inject(forwardRef(() => QuizService))
     private readonly quizService: QuizService,
     @Inject(forwardRef(() => AnswerService))
     private readonly answerService: AnswerService,
+    private readonly userService: UserService,
+    @Inject(forwardRef(() => QuizAutoModeService))
+    private readonly autoModeService: QuizAutoModeService,
   ) {}
 
   afterInit(server: Server) {
@@ -59,6 +67,12 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     this.expiredQuestionCheckInterval = setInterval(async () => {
       await this.checkAndEndExpiredQuestions();
     }, 5000);
+    
+    // Start broadcasting next question time updates every second
+    this.nextQuestionTimeInterval = setInterval(() => {
+      this.broadcastNextQuestionTimes();
+    }, 1000);
+    
     this.logger.log('QuizGateway initialized and expired question checker started');
   }
 
@@ -88,11 +102,16 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   async handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
     
-    // Remove client from all quiz rooms
+    // Remove client from all quiz rooms and admin rooms
     for (const [quizId, sockets] of this.quizRooms.entries()) {
       if (sockets.has(client.id)) {
         sockets.delete(client.id);
         client.leave(`quiz:${quizId}`);
+        
+        // Also leave admin room if this was an admin client
+        if (client.data?.isAdmin) {
+          client.leave(`quiz:${quizId}:admin`);
+        }
         
         if (sockets.size === 0) {
           this.quizRooms.delete(quizId);
@@ -106,6 +125,11 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     if (this.expiredQuestionCheckInterval) {
       clearInterval(this.expiredQuestionCheckInterval);
       this.expiredQuestionCheckInterval = null;
+    }
+    
+    if (this.nextQuestionTimeInterval) {
+      clearInterval(this.nextQuestionTimeInterval);
+      this.nextQuestionTimeInterval = null;
     }
     
     // Clear all leaderboard update timers
@@ -131,29 +155,48 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const roomName = `quiz:${quizId}`;
       await client.join(roomName);
       
+      // If admin client, also join admin-specific room
+      const isAdmin = data.isAdmin === true;
+      if (isAdmin) {
+        const adminRoomName = `quiz:${quizId}:admin`;
+        await client.join(adminRoomName);
+        this.logger.log(`Admin client ${client.id} joined admin room for quiz ${quizId}`);
+      }
+      
       // Track this client in the quiz room
       if (!this.quizRooms.has(quizId)) {
         this.quizRooms.set(quizId, new Set());
       }
       this.quizRooms.get(quizId)!.add(client.id);
 
-      // Store userId in socket data
+      // Store userId and admin flag in socket data
       if (userId) {
+        // Check if user is banned before allowing them to join
+        const user = await this.userService.getUserById(userId);
+        if (user && user.is_banned) {
+          client.emit('error', { message: 'Your account has been banned. You cannot participate in quizzes.' });
+          this.logger.warn(`Banned user ${userId} attempted to join quiz ${quizId}`);
+          return;
+        }
+        
         client.data.userId = userId;
         client.data.quizId = quizId;
       }
+      client.data.isAdmin = isAdmin;
 
       this.logger.log(`Client ${client.id} joined quiz ${quizId}`);
 
-      // Send current active question if any
-      const activeQuestion = await this.quizService.getCurrentActiveQuestion(quizId);
-      if (activeQuestion) {
-        // Sanitize question for frontend (remove answer, mask voice line URLs)
-        const sanitizedQuestion = this.sanitizeQuestionForFrontend(activeQuestion);
-        client.emit('question-live', {
-          question: sanitizedQuestion,
-          timeRemaining: this.calculateTimeRemaining(activeQuestion),
-        });
+      // Send current active question if any (only if user is not banned)
+      if (!userId || !(await this.userService.getUserById(userId))?.is_banned) {
+        const activeQuestion = await this.quizService.getCurrentActiveQuestion(quizId);
+        if (activeQuestion) {
+          // Sanitize question for frontend (remove answer, mask voice line URLs)
+          const sanitizedQuestion = this.sanitizeQuestionForFrontend(activeQuestion);
+          client.emit('question-live', {
+            question: sanitizedQuestion,
+            timeRemaining: this.calculateTimeRemaining(activeQuestion),
+          });
+        }
       }
 
       client.emit('joined-quiz', { quizId, success: true });
@@ -173,6 +216,12 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const roomName = `quiz:${quizId}`;
       
       await client.leave(roomName);
+      
+      // Also leave admin room if this was an admin client
+      if (client.data?.isAdmin) {
+        const adminRoomName = `quiz:${quizId}:admin`;
+        await client.leave(adminRoomName);
+      }
       
       if (this.quizRooms.has(quizId)) {
         this.quizRooms.get(quizId)!.delete(client.id);
@@ -225,8 +274,8 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         success: true,
       });
 
-      // Notify admin about new answer (broadcast to admin clients in the room)
-      this.server.to(`quiz:${quizId}`).emit('new-answer', {
+      // Notify admin about new answer (only send to admin clients, not quiz app clients)
+      this.server.to(`quiz:${quizId}:admin`).emit('new-answer', {
         answer: submittedAnswer,
         questionId,
       });
@@ -275,6 +324,18 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     // Remove the answer
     delete sanitized.correct_answer_hero;
     
+    // Ensure started_at is preserved and in ISO string format
+    if (question.started_at) {
+      sanitized.started_at = question.started_at instanceof Date 
+        ? question.started_at.toISOString() 
+        : question.started_at;
+    }
+    
+    // Ensure all required fields are present
+    if (!sanitized.id || !sanitized.quiz_id || !sanitized.question_type) {
+      this.logger.warn(`sanitizeQuestionForFrontend: missing required fields. id: ${sanitized.id}, quiz_id: ${sanitized.quiz_id}, question_type: ${sanitized.question_type}`);
+    }
+    
     // Mask voice line URLs if it's a voice line question
     if (sanitized.question_type === 'voice_line' && sanitized.question_content) {
       sanitized.question_content = this.maskVoiceLineUrl(sanitized.question_content, sanitized.id);
@@ -285,38 +346,40 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   // Public methods to emit events from services
   async emitQuestionLive(quizId: string, question: any) {
-    if (!this.server) {
-      this.logger.warn('WebSocket server not initialized, cannot emit question-live event');
-      return;
-    }
-
+    // Emit question live event via Socket.IO
+    if (this.server) {
     const roomName = `quiz:${quizId}`;
+    
+    // Calculate time remaining before sanitizing (needs original question data)
     const timeRemaining = this.calculateTimeRemaining(question);
     
     // Sanitize question for frontend (remove answer, mask voice line URLs)
     const sanitizedQuestion = this.sanitizeQuestionForFrontend(question);
 
-    // Broadcast to quiz participants
+    // Log what we're sending
+    this.logger.debug(`emitQuestionLive: question.id=${sanitizedQuestion.id}, started_at=${sanitizedQuestion.started_at}, timeRemaining=${timeRemaining}, time_limit=${sanitizedQuestion.time_limit_seconds}`);
+
+    // Broadcast to quiz participants (excluding banned users)
+    // We'll filter banned users by checking their user data when they try to receive the event
     this.server.to(roomName).emit('question-live', {
       question: sanitizedQuestion,
       timeRemaining,
     });
 
     // Also broadcast to all clients for global notification (home page toaster)
+    // Note: Frontend should check if user is banned before showing notifications
     this.server.emit('question-live', {
       question: sanitizedQuestion,
       timeRemaining,
     });
+    }
 
     this.logger.log(`Question ${question.id} went live for quiz ${quizId}`);
   }
 
   async emitQuestionEnded(quizId: string, question: any) {
-    if (!this.server) {
-      this.logger.warn('WebSocket server not initialized, cannot emit question-ended event');
-      return;
-    }
-
+    // Emit question ended event via Socket.IO
+    if (this.server) {
     const roomName = `quiz:${quizId}`;
     
     // Sanitize question for frontend (remove answer, mask voice line URLs)
@@ -329,11 +392,12 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         correct_answer_hero: question.correct_answer_hero, // Include correct answer for result popup
       },
     });
+    }
 
     // Find and announce the fastest correct answer winner
     await this.announceQuestionWinner(quizId, question);
 
-    // Broadcast final leaderboard
+    // Broadcast final leaderboard via Socket.IO
     await this.broadcastLeaderboard(quizId);
 
     this.logger.log(`Question ${question.id} ended for quiz ${quizId}`);
@@ -362,12 +426,7 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const winner = correctAnswers[0];
       
       // Get user info
-      const { data: user } = await this.quizService['supabase']
-        .from('users')
-        .select('in_game_name, full_name')
-        .eq('id', winner.user_id)
-        .single();
-
+      const user = await this.userService.getUserById(winner.user_id);
       const userName = user?.in_game_name || user?.full_name || 'Anonymous';
 
       const winnerData = {
@@ -411,11 +470,7 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       }
 
       // Get quiz name
-      const { data: quiz } = await this.quizService['supabase']
-        .from('quizzes')
-        .select('name')
-        .eq('id', quizId)
-        .single();
+      const quiz = await this.quizService.getQuizById(quizId);
 
       const winnersData = {
         winners: top3.map((entry) => ({
@@ -438,7 +493,7 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   /**
    * Schedule a leaderboard update (throttled to avoid excessive DB queries)
    */
-  private scheduleLeaderboardUpdate(quizId: string) {
+  scheduleLeaderboardUpdate(quizId: string) {
     // Clear existing timer if any
     const existingTimer = this.leaderboardUpdateTimers.get(quizId);
     if (existingTimer) {
@@ -456,11 +511,6 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   async broadcastLeaderboard(quizId: string) {
     try {
-      if (!this.server) {
-        this.logger.warn('WebSocket server not initialized, cannot broadcast leaderboard');
-        return;
-      }
-
       // Check cache first
       const cached = this.leaderboardCache.get(quizId);
       const now = Date.now();
@@ -476,11 +526,17 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.leaderboardCache.set(quizId, { data: leaderboard, timestamp: now });
       }
 
-      const roomName = `quiz:${quizId}`;
-      
-      this.server.to(roomName).emit('leaderboard-updated', {
-        leaderboard,
-      });
+      // Broadcast leaderboard via Socket.IO
+      if (this.server) {
+        const roomName = `quiz:${quizId}`;
+        this.server.to(roomName).emit('leaderboard-updated', {
+          leaderboard,
+        });
+        // Also broadcast to admin room
+        this.server.to(`quiz:${quizId}:admin`).emit('leaderboard-updated', {
+          leaderboard,
+        });
+      }
     } catch (error) {
       this.logger.error(`Error broadcasting leaderboard: ${error.message}`, error.stack);
     }
@@ -488,16 +544,146 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   private calculateTimeRemaining(question: any): number | null {
     if (!question.started_at || !question.time_limit_seconds) {
+      this.logger.warn(`calculateTimeRemaining: missing started_at or time_limit_seconds. started_at: ${question.started_at}, time_limit: ${question.time_limit_seconds}`);
       return null;
     }
 
-    const startTime = new Date(question.started_at).getTime();
+    // Handle both Date objects and ISO strings
+    let startTime: number;
+    if (question.started_at instanceof Date) {
+      startTime = question.started_at.getTime();
+    } else if (typeof question.started_at === 'string') {
+      startTime = new Date(question.started_at).getTime();
+    } else {
+      this.logger.warn(`calculateTimeRemaining: invalid started_at type: ${typeof question.started_at}`);
+      return null;
+    }
+
+    // Check if startTime is valid
+    if (isNaN(startTime)) {
+      this.logger.warn(`calculateTimeRemaining: invalid startTime from started_at: ${question.started_at}`);
+      return null;
+    }
+
     const now = Date.now();
     const elapsed = Math.floor((now - startTime) / 1000); // seconds
     const timeLimit = question.time_limit_seconds;
     const remaining = Math.max(0, timeLimit - elapsed);
 
+    this.logger.debug(`calculateTimeRemaining: started_at=${question.started_at}, elapsed=${elapsed}s, limit=${timeLimit}s, remaining=${remaining}s`);
+
     return remaining;
+  }
+
+  /**
+   * Emit quiz status changed event via Socket.IO
+   * This is the primary mechanism for real-time quiz status updates
+   */
+  async emitQuizStatusChanged(quizId: string, newStatus: string) {
+    if (!this.server) {
+      this.logger.warn('WebSocket server not initialized, cannot emit quiz status change');
+      return;
+    }
+    
+    const roomName = `quiz:${quizId}`;
+    
+    // Emit to quiz-specific room
+    this.server.to(roomName).emit('quiz-status-changed', { quizId, newStatus });
+    
+    // Also broadcast to all clients for global notification (home page, etc.)
+    this.server.emit('quiz-status-changed', { quizId, newStatus });
+    
+    // Also emit to admin room if it exists
+    this.server.to(`quiz:${quizId}:admin`).emit('quiz-status-changed', { quizId, newStatus });
+    
+    // Also emit quiz-updated event to admin room to trigger full refresh
+    // This ensures auto_mode_enabled and other fields are refreshed
+    this.server.to(`quiz:${quizId}:admin`).emit('quiz-updated', { quizId });
+    
+    this.logger.log(`Quiz ${quizId} status changed to ${newStatus}`);
+  }
+
+  /**
+   * Broadcast next question time updates to all admin clients
+   * Runs every second to provide real-time countdown updates
+   * Calculates: current question remaining time + interval = total time until next question
+   */
+  private async broadcastNextQuestionTimes() {
+    if (!this.server || !this.autoModeService) {
+      return;
+    }
+
+    try {
+      // Get all quiz IDs that have clients (from quizRooms)
+      // We'll broadcast to all of them - Socket.IO will only send to clients in the admin room
+      const quizIds = Array.from(this.quizRooms.keys());
+
+      for (const quizId of quizIds) {
+        const nextActivationTime = this.autoModeService.getNextActivationTime(quizId);
+        if (nextActivationTime) {
+          // Get current active question to calculate its remaining time
+          const activeQuestion = await this.quizService.getCurrentActiveQuestion(quizId);
+          let totalTimeRemaining = 0;
+          
+          if (activeQuestion) {
+            // Calculate current question's remaining time
+            const currentQuestionRemaining = this.calculateTimeRemaining(activeQuestion) || 0;
+            
+            // Get the interval from auto mode service (or from quiz settings)
+            const quiz = await this.quizService.getQuizById(quizId);
+            const intervalSeconds = quiz?.auto_mode_interval_seconds || 120;
+            
+            // Total time = current question remaining + interval
+            totalTimeRemaining = currentQuestionRemaining + intervalSeconds;
+          } else {
+            // No active question, just use the interval time
+            const now = Date.now();
+            totalTimeRemaining = Math.max(0, Math.floor((nextActivationTime.getTime() - now) / 1000));
+          }
+          
+          // Emit to admin room for this quiz (Socket.IO handles if room is empty)
+          this.server.to(`quiz:${quizId}:admin`).emit('next-question-time', {
+            quizId,
+            nextActivationTime: nextActivationTime.toISOString(),
+            timeRemaining: totalTimeRemaining,
+          });
+        } else {
+          // No next activation time (auto mode not active or paused)
+          // Only emit if we know there are clients in this quiz
+          if (this.quizRooms.has(quizId) && this.quizRooms.get(quizId)!.size > 0) {
+            this.server.to(`quiz:${quizId}:admin`).emit('next-question-time', {
+              quizId,
+              nextActivationTime: null,
+              timeRemaining: null,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      // Silently handle errors to prevent crashing the interval
+      this.logger.debug(`Error broadcasting next question times: ${error.message}`);
+    }
+  }
+
+  /**
+   * Emit user banned event to force logout
+   */
+  emitUserBanned(userId: string): void {
+    if (!this.server) {
+      return;
+    }
+
+    // Emit to all sockets for this user
+    this.server.emit('user-banned', {
+      userId,
+      message: 'Your account has been banned. You will be logged out.',
+    });
+
+    // Also emit to user-specific room if it exists
+    this.server.to(`user:${userId}`).emit('user-banned', {
+      userId,
+      message: 'Your account has been banned. You will be logged out.',
+    });
   }
 }
 

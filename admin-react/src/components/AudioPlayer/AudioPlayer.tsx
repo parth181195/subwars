@@ -153,7 +153,6 @@ export default function AudioPlayer({ src, className = '' }: AudioPlayerProps) {
                 value={volume}
                 onChange={handleVolumeChange}
                 className="audio-player-volume"
-                orient="vertical"
               />
             </div>
           )}

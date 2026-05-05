@@ -1,29 +1,14 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { Button } from '@primer/react';
 import { quizAuthService } from '../../services/auth';
+import { environment } from '../../config/environment';
 import './Login.scss';
 
 export default function LoginPage() {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Redirect if already logged in
-  useEffect(() => {
-    const unsubscribe = quizAuthService.subscribe((user) => {
-      if (user) {
-        navigate('/', { replace: true });
-      }
-    });
-
-    // Check initial state
-    if (quizAuthService.isAuthenticated) {
-      navigate('/', { replace: true });
-    }
-
-    return unsubscribe;
-  }, [navigate]);
+  // AppLoader handles redirect logic, so we don't need to check auth here
 
   const handleGoogleSignIn = async () => {
     setError('');
@@ -42,9 +27,14 @@ export default function LoginPage() {
   return (
     <div className="login-container">
       <div className="login-card">
-        <div className="login-header">
+          <div className="login-header">
           <h1 className="login-title">Welcome to SUB WARS V</h1>
-          <p className="login-subtitle">Sign in with Google to participate in the quiz</p>
+          <p className="login-subtitle">
+            {environment.showQuiz 
+              ? 'Sign in with Google to participate in the GUESS THE HERO contest'
+              : 'Sign in with Google to access your account'
+            }
+          </p>
         </div>
 
         {error && (
@@ -79,7 +69,7 @@ export default function LoginPage() {
 
           <div className="login-info">
             <p className="info-text">
-              By signing in, you can participate in quizzes and REGISTER FOR SUB WARS V.
+              By signing in, you can participate in GUESS THE HERO contests.
             </p>
           </div>
         </div>

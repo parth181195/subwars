@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import { Button, Label } from '@primer/react';
+import { CopyIcon } from '@primer/octicons-react';
 import QuestionDetailsPopup from './QuestionDetailsPopup';
 import CreateQuestionDialog from './CreateQuestionDialog';
+import AutoGenerateQuestionsDialog from './AutoGenerateQuestionsDialog';
 import ImagePreviewDialog from './ImagePreviewDialog';
 import ConfirmationDialog from './ConfirmationDialog';
+import { useToast } from '../../components/Toast/ToastContainer';
+import { environment } from '../../config/environment';
+import { getAuthHeaders, getAuthHeadersForFormData } from '../../utils/api-client';
 import './QuestionsTab.scss';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = environment.apiBaseUrl || 'http://localhost:3000';
 
 interface QuizQuestion {
   id: string;
@@ -25,16 +30,9 @@ interface QuizQuestion {
   created_at: string;
 }
 
-interface VoiceLineData {
+interface HeroInfo {
   hero: string;
   url: string;
-  voiceLines: Array<{
-    name: string;
-    link: string;
-    category: string;
-    bunnyCdnLink?: string;
-    bunnyCdnPath?: string;
-  }>;
 }
 
 interface QuestionsTabProps {
@@ -43,7 +41,7 @@ interface QuestionsTabProps {
   quizStatus?: 'draft' | 'live' | 'paused' | 'completed';
   onQuestionsChange: () => void;
   onViewAnswers: (questionId: string) => void;
-  voiceLinesData: VoiceLineData[];
+  heroes: HeroInfo[];
 }
 
 export default function QuestionsTab({
@@ -52,9 +50,11 @@ export default function QuestionsTab({
   quizStatus,
   onQuestionsChange,
   onViewAnswers,
-  voiceLinesData,
+  heroes,
 }: QuestionsTabProps) {
+  const { addToast } = useToast();
   const [showCreateQuestion, setShowCreateQuestion] = useState(false);
+  const [showAutoGenerate, setShowAutoGenerate] = useState(false);
   const [showQuestionDetails, setShowQuestionDetails] = useState<string | null>(null);
   const [questionStatistics, setQuestionStatistics] = useState<{
     totalAnswers: number;
@@ -78,21 +78,39 @@ export default function QuestionsTab({
   const [questionFile, setQuestionFile] = useState<File | null>(null);
   const [answerFile, setAnswerFile] = useState<File | null>(null);
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      // You could show a toast notification here
+      console.log('Copied to clipboard:', text);
+    }).catch((err) => {
+      console.error('Failed to copy:', err);
+    });
+  };
+
   const fetchQuestionDetails = async (questionId: string) => {
     try {
+      const headers = await getAuthHeaders();
       const [answersResponse, questionResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}/answers`),
-        fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}`),
+        fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}/answers`, { headers }),
+        fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}`, { headers }),
       ]);
 
       if (answersResponse.ok && questionResponse.ok) {
         const answers = await answersResponse.json();
         const question = await questionResponse.json();
         
+        // Validate data
+        if (!Array.isArray(answers)) {
+          throw new Error('Invalid answers data');
+        }
+        if (!question || !question.id) {
+          throw new Error('Invalid question data');
+        }
+        
         setQuestionStatistics({
           totalAnswers: answers.length,
-          correctAnswers: answers.filter((a: any) => a.is_correct).length,
-          answerHero: question.correct_answer_hero,
+          correctAnswers: answers.filter((a: any) => a && a.is_correct).length,
+          answerHero: question.correct_answer_hero || 'Unknown',
         });
         setShowQuestionDetails(questionId);
       }
@@ -104,7 +122,12 @@ export default function QuestionsTab({
   const handleMakeQuestionLiveClick = (questionId: string, questionNumber: number) => {
     // Prevent making questions live if quiz is in draft
     if (quizStatus === 'draft') {
-      alert('Cannot make questions live while the quiz is in draft status. Please set the quiz to live first.');
+      addToast({
+        type: 'warning',
+        title: 'Quiz Not Live',
+        message: 'Cannot make questions live while the quiz is in draft status. Please set the quiz to live first.',
+        duration: 5000,
+      });
       return;
     }
 
@@ -121,8 +144,10 @@ export default function QuestionsTab({
 
   const handleMakeQuestionLive = async (questionId: string) => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}/make-live`, {
         method: 'POST',
+        headers,
       });
       if (response.ok) {
         // Refresh questions list to get updated statuses from backend
@@ -131,19 +156,29 @@ export default function QuestionsTab({
         setReactivateConfirm(null);
       } else {
         const errorText = await response.text();
-        console.error('Failed to make question live:', response.status, errorText);
-        alert(`Failed to make question live: ${errorText}`);
+        addToast({
+          type: 'error',
+          title: 'Failed to Make Question Live',
+          message: errorText,
+          duration: 5000,
+        });
       }
     } catch (error) {
-      console.error('Failed to make question live:', error);
-      alert('Failed to make question live. Please try again.');
+      addToast({
+        type: 'error',
+        title: 'Failed to Make Question Live',
+        message: 'Failed to make question live. Please try again.',
+        duration: 5000,
+      });
     }
   };
 
   const handleEndQuestion = async (questionId: string) => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${questionId}/end`, {
         method: 'POST',
+        headers,
       });
       if (response.ok) {
         onQuestionsChange();
@@ -163,8 +198,10 @@ export default function QuestionsTab({
     if (!deleteConfirm) return;
 
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${deleteConfirm.questionId}`, {
         method: 'DELETE',
+        headers,
       });
       if (response.ok) {
         onQuestionsChange();
@@ -197,8 +234,10 @@ export default function QuestionsTab({
     }
 
     try {
+      const headers = await getAuthHeadersForFormData();
       const response = await fetch(`${API_BASE_URL}/api/admin/quizzes/questions/${editingQuestion.id}`, {
         method: 'PUT',
+        headers,
         body: formData,
       });
 
@@ -220,11 +259,20 @@ export default function QuestionsTab({
         setAnswerFile(null);
       } else {
         const error = await response.json();
-        alert(`Failed to update question: ${error.message || 'Unknown error'}`);
+        addToast({
+          type: 'error',
+          title: 'Update Failed',
+          message: error.message || 'Unknown error',
+          duration: 5000,
+        });
       }
     } catch (error) {
-      console.error('Failed to update question:', error);
-      alert('Failed to update question');
+      addToast({
+        type: 'error',
+        title: 'Update Failed',
+        message: 'Failed to update question. Please try again.',
+        duration: 5000,
+      });
     }
   };
 
@@ -253,8 +301,10 @@ export default function QuestionsTab({
         formData.append('answer_file', answerFile);
       }
 
+      const headers = await getAuthHeadersForFormData();
       const response = await fetch(`${API_BASE_URL}/api/admin/quizzes/${quizId}/questions`, {
         method: 'POST',
+        headers,
         body: formData,
       });
 
@@ -274,11 +324,20 @@ export default function QuestionsTab({
         onQuestionsChange();
       } else {
         const error = await response.json();
-        alert(`Failed to create question: ${error.message || 'Unknown error'}`);
+        addToast({
+          type: 'error',
+          title: 'Create Failed',
+          message: error.message || 'Unknown error',
+          duration: 5000,
+        });
       }
     } catch (error) {
-      console.error('Failed to create question:', error);
-      alert('Failed to create question');
+      addToast({
+        type: 'error',
+        title: 'Create Failed',
+        message: 'Failed to create question. Please try again.',
+        duration: 5000,
+      });
     }
   };
 
@@ -288,12 +347,20 @@ export default function QuestionsTab({
     <div className="questions-tab">
       <div className="section-header">
         <h2>Questions</h2>
-        <Button
-          variant="primary"
-          onClick={() => setShowCreateQuestion(true)}
-        >
-          + Add Question
-        </Button>
+        <div className="section-header-actions">
+          <Button
+            variant="default"
+            onClick={() => setShowAutoGenerate(true)}
+          >
+            ⚡ Auto-Generate
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => setShowCreateQuestion(true)}
+          >
+            + Add Question
+          </Button>
+        </div>
       </div>
 
       {questions.length === 0 ? (
@@ -355,6 +422,18 @@ export default function QuestionsTab({
                     <span className="question-number">#{question.order_index + 1}</span>
                     <span className="question-type">{question.question_type === 'voice_line' ? 'Voice Line' : 'Image'}</span>
                     <span className="question-answer-hero">{question.correct_answer_hero}</span>
+                    <Button
+                      size="small"
+                      variant="invisible"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(question.correct_answer_hero);
+                      }}
+                      aria-label="Copy answer"
+                      title="Copy correct answer"
+                    >
+                      <CopyIcon />
+                    </Button>
                     {question.is_active && question.status === 'live' && (
                       <div className="live-indicator-inline">
                         <span className="live-dot"></span>
@@ -388,7 +467,7 @@ export default function QuestionsTab({
                         if (questionToEdit) {
                           setNewQuestion({
                             question_type: questionToEdit.question_type,
-                            voice_line_url: questionToEdit.question_content_metadata?.voice_line_url || '',
+                            voice_line_url: questionToEdit.question_type === 'voice_line' ? questionToEdit.question_content : '',
                             question_content: questionToEdit.question_content,
                             correct_answer_hero: questionToEdit.correct_answer_hero,
                             answer_image_url: questionToEdit.answer_image_url || '',
@@ -470,20 +549,33 @@ export default function QuestionsTab({
           setQuestionFile={setQuestionFile}
           answerFile={answerFile}
           setAnswerFile={setAnswerFile}
-          voiceLinesData={voiceLinesData}
+          heroes={heroes}
           editingQuestion={editingQuestion}
+        />
+      )}
+
+      {showAutoGenerate && (
+        <AutoGenerateQuestionsDialog
+          isOpen={showAutoGenerate}
+          onClose={() => setShowAutoGenerate(false)}
+          quizId={quizId}
+          onSuccess={() => {
+            setShowAutoGenerate(false);
+            onQuestionsChange();
+          }}
         />
       )}
 
       {reactivateConfirm && (
         <ConfirmationDialog
+          isOpen={true}
           title="Reactivate Question"
           message={`Are you sure you want to reactivate Question #${reactivateConfirm.questionNumber}? This will make it live again.`}
           onConfirm={() => handleMakeQuestionLive(reactivateConfirm.questionId)}
           onCancel={() => setReactivateConfirm(null)}
-          confirmButtonText="Reactivate"
-          cancelButtonText="Cancel"
-          variant="attention"
+          confirmText="Reactivate"
+          cancelText="Cancel"
+          variant="primary"
         />
       )}
 
@@ -499,7 +591,12 @@ export default function QuestionsTab({
           onMakeLive={(questionId) => {
             // Prevent making questions live if quiz is in draft
             if (quizStatus === 'draft') {
-              alert('Cannot make questions live while the quiz is in draft status. Please set the quiz to live first.');
+              addToast({
+                type: 'warning',
+                title: 'Cannot Make Question Live',
+                message: 'Cannot make questions live while the quiz is in draft status. Please set the quiz to live first.',
+                duration: 5000,
+              });
               return;
             }
             const question = questions.find(q => q.id === questionId);
@@ -556,7 +653,7 @@ export default function QuestionsTab({
           message={`Are you sure you want to reactivate Question #${reactivateConfirm.questionNumber}? This will make it live again.`}
           confirmText="Reactivate"
           cancelText="Cancel"
-          variant="attention"
+          variant="primary"
           onConfirm={() => handleMakeQuestionLive(reactivateConfirm.questionId)}
           onCancel={() => setReactivateConfirm(null)}
         />

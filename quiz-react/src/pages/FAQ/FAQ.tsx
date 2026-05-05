@@ -59,7 +59,7 @@ export default function FAQ() {
         <div className="faq-header">
           <h1 className="faq-title">Frequently Asked Questions</h1>
           <p className="faq-subtitle">
-            Find answers to common questions about SUB WARS V and the Guess the Hero Contest
+            Find answers to common questions about SUB WARS V and the GUESS THE HERO Contest
           </p>
         </div>
 

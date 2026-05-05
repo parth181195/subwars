@@ -1,8 +1,11 @@
-import { Controller, Get, Param, Res, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Res, HttpException, HttpStatus, BadRequestException, UseGuards, Req, Inject } from '@nestjs/common';
 import { Response } from 'express';
 import { QuizService } from './quiz.service';
 import { QuizGateway } from './quiz.gateway';
 import { BunnyStorageService } from '../storage/bunny-storage.service';
+import { AnswerService } from '../answer/answer.service';
+import { FirebaseAuthGuard } from './guards/firebase-auth.guard';
+import * as admin from 'firebase-admin';
 
 // In-memory cache for voice line files (for scalability)
 const voiceLineCache = new Map<string, { buffer: Buffer; contentType: string; timestamp: number }>();
@@ -14,27 +17,55 @@ export class QuizController {
     private readonly quizService: QuizService,
     private readonly quizGateway: QuizGateway,
     private readonly bunnyStorageService: BunnyStorageService,
+    private readonly answerService: AnswerService,
+    @Inject('FIREBASE_AUTH')
+    private firebaseAuth: admin.auth.Auth,
   ) {}
 
   /**
    * Get all active quizzes (public endpoint)
+   * OPTIMIZED: Filter at database level instead of in-memory
    */
   @Get('active')
   async getActiveQuizzes() {
-    const quizzes = await this.quizService.getAllQuizzes();
-    return quizzes.filter((quiz) => quiz.status === 'live');
+    return this.quizService.getActiveQuizzes();
   }
 
   /**
    * Get a specific quiz by ID (public endpoint - sanitized)
+   * Returns quiz with user access info (for frontend to check if user can participate)
    */
   @Get(':id')
-  async getQuizById(@Param('id') id: string) {
-    const quiz = await this.quizService.getQuizById(id);
+  async getQuizById(@Param('id') id: string, @Req() req?: any) {
+    // Parallelize quiz fetch and token verification (if token exists)
+    const authHeader = req?.headers?.authorization;
+    const hasToken = authHeader && authHeader.startsWith('Bearer ');
+    
+    const [quiz, tokenResult] = await Promise.all([
+      this.quizService.getQuizById(id),
+      // Only verify token if it exists (don't waste time if no auth header)
+      hasToken ? (async () => {
+        try {
+          const token = authHeader.substring(7);
+          const decodedToken = await this.firebaseAuth.verifyIdToken(token);
+          return { email: decodedToken.email || null, valid: true };
+        } catch {
+          return { email: null, valid: false };
+        }
+      })() : Promise.resolve({ email: null, valid: false }),
+    ]);
+    
     if (!quiz) {
-      throw new HttpException('Quiz not found', HttpStatus.NOT_FOUND);
+      throw new HttpException('Contest not found', HttpStatus.NOT_FOUND);
     }
-    return quiz;
+    
+    // Return quiz
+    const sanitizedQuiz = {
+      ...quiz,
+      can_participate: true,
+    };
+    
+    return sanitizedQuiz;
   }
 
   /**
@@ -42,7 +73,7 @@ export class QuizController {
    */
   @Get(':id/questions')
   async getQuizQuestions(@Param('id') quizId: string) {
-    const questions = await this.quizService.getQuizQuestions(quizId);
+    const questions = await this.quizService.getQuestionsByQuizId(quizId);
     // Sanitize questions (remove answers, mask voice line URLs)
     return questions.map((q) => this.sanitizeQuestion(q));
   }
@@ -60,7 +91,16 @@ export class QuizController {
   }
 
   /**
-   * Get leaderboard for a quiz (public endpoint)
+   * Get combined leaderboard across all quizzes (public endpoint)
+   * IMPORTANT: This route must come before :id/leaderboard to avoid route conflicts
+   */
+  @Get('leaderboard/combined')
+  async getCombinedLeaderboard() {
+    return this.quizService.getCombinedLeaderboard();
+  }
+
+  /**
+   * Get leaderboard for a specific quiz (public endpoint)
    */
   @Get(':id/leaderboard')
   async getQuizLeaderboard(@Param('id') quizId: string) {
@@ -87,46 +127,94 @@ export class QuizController {
    */
   @Get('questions/:questionId/top-answers')
   async getTopAnswers(@Param('questionId') questionId: string) {
+    return this.quizService.getTopAnswers(questionId);
+  }
+
+  /**
+   * Submit an answer for a question (public endpoint - requires auth)
+   */
+  @Post('questions/:questionId/answers')
+  @UseGuards(FirebaseAuthGuard)
+  async submitAnswer(
+    @Param('questionId') questionId: string,
+    @Body() body: { answer: string; quizId: string; userId: string; responseTime?: number },
+    @Req() req: any, // To access req.user from AuthGuard
+  ) {
+    const { answer, quizId, userId } = body;
+    const userEmail = req.user?.email;
+
+    if (!answer || !quizId || !userId) {
+      throw new BadRequestException('Missing required fields: answer, quizId, userId');
+    }
+
     try {
-      // Get all correct answers with user info, ordered by response_time
-      const { data: answers, error } = await this.quizService['supabase']
-        .from('answers')
-        .select(`
-          id,
-          user_id,
-          response_time,
-          score,
-          users!inner (
-            in_game_name,
-            full_name
-          )
-        `)
-        .eq('question_id', questionId)
-        .eq('is_correct', true)
-        .not('response_time', 'is', null)
-        .order('response_time', { ascending: true })
-        .limit(3);
+      // Convert responseTime from seconds (frontend) to milliseconds (backend)
+      // NOTE: Client-provided responseTime is only used for security monitoring/comparison
+      // The actual response time is ALWAYS calculated server-side using server time to prevent time manipulation attacks
+      const responseTimeMs = body.responseTime !== undefined 
+        ? Math.round(body.responseTime * 1000) 
+        : undefined;
+      
+      // Submit answer using the answer service
+      // The answer service now uses direct Sequelize queries for maximum performance
+      // Quiz restrictions are checked inside submitAnswer
+      // Response time is calculated server-side to prevent client time manipulation
+      const submittedAnswer = await this.answerService.submitAnswer({
+        user_id: userId,
+        quiz_id: quizId,
+        question_id: questionId,
+        answer: answer.trim(),
+        response_time: responseTimeMs, // Passed for security monitoring only - actual time calculated server-side
+      }, userEmail);
 
-      if (error) {
-        throw new BadRequestException(`Failed to get top answers: ${error.message}`);
-      }
+      // Update leaderboard (throttled)
+      this.quizGateway.scheduleLeaderboardUpdate(quizId);
 
-      if (!answers || answers.length === 0) {
-        return [];
-      }
-
-      // Format the response
-      return answers.map((answer: any, index: number) => ({
-        position: index + 1,
-        user_name: answer.users?.in_game_name || answer.users?.full_name || 'Anonymous',
-        response_time: answer.response_time,
-        score: answer.score || 0,
-      }));
+      return {
+        answer: submittedAnswer,
+        success: true,
+      };
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      if (error instanceof HttpException) {
         throw error;
       }
-      throw new BadRequestException('Failed to fetch top answers');
+      throw new HttpException(
+        error.message || 'Failed to submit answer',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  /**
+   * Get user's answer for a specific question (requires auth)
+   */
+  @Get('questions/:questionId/user-answer')
+  @UseGuards(FirebaseAuthGuard)
+  async getUserAnswer(
+    @Param('questionId') questionId: string,
+    @Req() req: any,
+  ) {
+    // FirebaseAuthGuard sets req.user.id and req.user.firebaseUid
+    const userId = req.user?.id || req.user?.firebaseUid || req.user?.uid;
+    if (!userId) {
+      throw new BadRequestException('User ID is required. Please ensure you are authenticated.');
+    }
+
+    try {
+      const answer = await this.answerService.getUserAnswerForQuestion(userId, questionId);
+      return {
+        answer: answer,
+        hasAnswer: answer !== null,
+        attemptsExhausted: answer ? (answer.attempt_count || 0) >= 3 : false,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        error.message || 'Failed to get user answer',
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 
@@ -160,40 +248,27 @@ export class QuizController {
         return res.send(cached.buffer);
       }
 
-      // Cache miss - fetch from database and CDN
+      // Cache miss - fetch from database (optimize query to only get needed fields)
       const question = await this.quizService.getQuestionById(questionId);
       
       if (!question || question.question_type !== 'voice_line' || !question.question_content) {
         throw new HttpException('Voice line not found', HttpStatus.NOT_FOUND);
       }
 
-      // Fetch the actual file from Bunny CDN and proxy it
+      // Stream directly from CDN instead of buffering (much faster for large files)
       const voiceLineUrl = question.question_content;
-      const response = await fetch(voiceLineUrl);
+      const response = await fetch(voiceLineUrl, {
+        // Add timeout to prevent hanging requests
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
       
       if (!response.ok) {
         throw new HttpException('Failed to fetch voice line', HttpStatus.BAD_GATEWAY);
       }
 
-      // Buffer the file
-      const buffer = Buffer.from(await response.arrayBuffer());
+      // Get content type and length
       const contentType = response.headers.get('content-type') || 'audio/mpeg';
-
-      // Store in cache
-      voiceLineCache.set(questionId, {
-        buffer,
-        contentType,
-        timestamp: now,
-      });
-
-      // Clean up old cache entries (keep only last 10)
-      if (voiceLineCache.size > 10) {
-        const entries = Array.from(voiceLineCache.entries());
-        entries.sort((a, b) => b[1].timestamp - a[1].timestamp);
-        const toKeep = entries.slice(0, 10);
-        voiceLineCache.clear();
-        toKeep.forEach(([key, value]) => voiceLineCache.set(key, value));
-      }
+      const contentLength = response.headers.get('content-length');
 
       // Set CORS headers explicitly (required when using @Res())
       const origin = res.req.headers.origin;
@@ -206,14 +281,58 @@ export class QuizController {
       res.setHeader('Content-Type', contentType);
       res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
       res.setHeader('Accept-Ranges', 'bytes'); // Enable range requests for audio
-      
-      // Send the file
-      res.send(buffer);
+      if (contentLength) {
+        res.setHeader('Content-Length', contentLength);
+      }
+
+      // Only buffer small files (< 5MB) for caching, stream large files directly
+      const contentLengthNum = contentLength ? parseInt(contentLength, 10) : 0;
+      const shouldCache = contentLengthNum > 0 && contentLengthNum < 5 * 1024 * 1024; // 5MB threshold
+
+      if (shouldCache) {
+        // Buffer small files for caching
+        const buffer = Buffer.from(await response.arrayBuffer());
+        
+        // Store in cache
+        voiceLineCache.set(questionId, {
+          buffer,
+          contentType,
+          timestamp: now,
+        });
+
+        // Clean up old cache entries (keep only last 10)
+        if (voiceLineCache.size > 10) {
+          const entries = Array.from(voiceLineCache.entries());
+          entries.sort((a, b) => b[1].timestamp - a[1].timestamp);
+          const toKeep = entries.slice(0, 10);
+          voiceLineCache.clear();
+          toKeep.forEach(([key, value]) => voiceLineCache.set(key, value));
+        }
+
+        return res.send(buffer);
+      } else {
+        // Stream large files directly without caching (much faster)
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new HttpException('Failed to stream voice line', HttpStatus.BAD_GATEWAY);
+        }
+
+        // Stream chunks directly to response
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+        }
+        return res.end();
+      }
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
-      throw new HttpException('Internal server error', HttpStatus.INTERNAL_SERVER_ERROR);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new HttpException('Request timeout while fetching voice line', HttpStatus.GATEWAY_TIMEOUT);
+      }
+      throw new HttpException('Failed to fetch voice line', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

@@ -1,11 +1,22 @@
 .leaderboard-tab {
   h2 {
-    margin: 0 0 1.5rem 0;
+    margin: 0 0 0 0;
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--color-fg-default, #f0f6fc);
   }
+  .leaderboard-header {
+    
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
 
+    .leaderboard-actions {
+      display: flex;
+      gap: 10px;
+    }
+  }
   .empty-state {
     text-align: center;
     padding: 3rem;

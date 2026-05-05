@@ -7,13 +7,19 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "webpack-cli build",
-        "args": ["--node-env=production"],
+        "commands": [
+          "webpack-cli build --node-env=production",
+          "node ../scripts/fix-package-json.js"
+        ],
+        "parallel": false,
         "cwd": "api"
       },
       "configurations": {
         "development": {
-          "args": ["--node-env=development"]
+          "commands": [
+            "webpack-cli build --node-env=development",
+            "node ../scripts/fix-package-json.js"
+          ]
         }
       }
     },

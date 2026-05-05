@@ -1,116 +1,140 @@
-import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
-import { SupabaseClient } from '@supabase/supabase-js';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
 import { VoiceLine, VoiceLineInsert, VoiceLineUpdate } from '../types/database.types';
+import { VoiceLineModel } from '../models/voice-line.model';
+import { HeroModel } from '../models/hero.model';
 
 @Injectable()
 export class VoiceLineService {
   constructor(
-    @Inject('SUPABASE_ADMIN_CLIENT')
-    private supabase: SupabaseClient,
+    @InjectModel(VoiceLineModel)
+    private readonly voiceLineModel: typeof VoiceLineModel,
+    @InjectModel(HeroModel)
+    private readonly heroModel: typeof HeroModel,
   ) {}
 
-  async createVoiceLine(voiceLineInsert: VoiceLineInsert): Promise<VoiceLine> {
-    const { data: voiceLine, error } = await this.supabase
-      .from('voice_lines')
-      .insert(voiceLineInsert)
-      .select()
-      .single();
-
-    if (error) {
-      throw new BadRequestException(`Failed to create voice line: ${error.message}`);
+  async createVoiceLine(voiceLineInsert: VoiceLineInsert, heroName: string): Promise<VoiceLine> {
+    try {
+      // Create in voice_lines table with hero_name using Sequelize model
+      const voiceLine = await this.voiceLineModel.create({
+        ...voiceLineInsert,
+        hero_name: heroName,
+        scraped_at: new Date(),
+      } as any);
+      return voiceLine.get({ plain: true }) as VoiceLine;
+    } catch (error) {
+      throw new BadRequestException(`Failed to create voice line: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    return voiceLine as VoiceLine;
   }
 
   async getVoiceLineById(id: string): Promise<VoiceLine> {
-    const { data: voiceLine, error } = await this.supabase
-      .from('voice_lines')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const voiceLine = await this.voiceLineModel.findByPk(id);
 
-    if (error || !voiceLine) {
+    if (!voiceLine) {
       throw new NotFoundException(`Voice line with ID ${id} not found`);
     }
 
-    return voiceLine as VoiceLine;
+    return voiceLine.get({ plain: true }) as VoiceLine;
   }
 
   async getAllVoiceLines(): Promise<VoiceLine[]> {
-    const { data: voiceLines, error } = await this.supabase
-      .from('voice_lines')
-      .select('*')
-      .order('scraped_at', { ascending: false });
-
-    if (error) {
-      throw new BadRequestException(`Failed to get voice lines: ${error.message}`);
+    try {
+      const voiceLines = await this.voiceLineModel.findAll({
+        order: [['scraped_at', 'DESC']],
+      });
+      return voiceLines.map(vl => vl.get({ plain: true })) as VoiceLine[];
+    } catch (error) {
+      throw new BadRequestException(`Failed to get voice lines: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    return (voiceLines || []) as VoiceLine[];
   }
 
   async getVoiceLinesByHero(heroName: string): Promise<VoiceLine[]> {
-    const { data: voiceLines, error } = await this.supabase
-      .from('voice_lines')
-      .select('*')
-      .eq('hero_name', heroName)
-      .order('scraped_at', { ascending: false });
-
-    if (error) {
-      throw new BadRequestException(`Failed to get voice lines: ${error.message}`);
+    try {
+      // Query voice lines with hero_name filter using Sequelize
+      let voiceLines = await this.voiceLineModel.findAll({
+        where: {
+          hero_name: heroName,
+        },
+        order: [['scraped_at', 'DESC']],
+      });
+      
+      // If no results, try case-insensitive hero name lookup
+      if (!voiceLines || voiceLines.length === 0) {
+        // Get all heroes and find case-insensitive match
+        const heroes = await this.heroModel.findAll({
+          attributes: ['name'],
+        });
+        const matchingHero = heroes.find(h => {
+          const name = h.get('name') as string;
+          return name && name.toLowerCase() === heroName.toLowerCase();
+        });
+        
+        if (matchingHero) {
+          const matchingHeroName = matchingHero.get('name') as string;
+          voiceLines = await this.voiceLineModel.findAll({
+            where: {
+              hero_name: matchingHeroName,
+            },
+            order: [['scraped_at', 'DESC']],
+          });
+        }
+      }
+      
+      return voiceLines.map(vl => vl.get({ plain: true })) as VoiceLine[];
+    } catch (error) {
+      throw new BadRequestException(`Failed to get voice lines: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    return (voiceLines || []) as VoiceLine[];
   }
 
   async getRandomVoiceLine(heroName?: string): Promise<VoiceLine> {
-    let query = this.supabase
-      .from('voice_lines')
-      .select('*');
+    try {
+      const where = heroName ? { hero_name: heroName } : {};
+      const voiceLines = await this.voiceLineModel.findAll({ where });
 
-    if (heroName) {
-      query = query.eq('hero_name', heroName);
+      if (!voiceLines || voiceLines.length === 0) {
+        throw new NotFoundException('No voice lines found');
+      }
+
+      // Get random voice line
+      const randomIndex = Math.floor(Math.random() * voiceLines.length);
+      return voiceLines[randomIndex].get({ plain: true }) as VoiceLine;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to get voice lines: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    const { data: voiceLines, error } = await query;
-
-    if (error) {
-      throw new BadRequestException(`Failed to get voice lines: ${error.message}`);
-    }
-
-    if (!voiceLines || voiceLines.length === 0) {
-      throw new NotFoundException('No voice lines found');
-    }
-
-    // Get random voice line
-    const randomIndex = Math.floor(Math.random() * voiceLines.length);
-    return voiceLines[randomIndex] as VoiceLine;
   }
 
   async updateVoiceLine(id: string, voiceLineUpdate: VoiceLineUpdate): Promise<VoiceLine> {
-    const { data: voiceLine, error } = await this.supabase
-      .from('voice_lines')
-      .update(voiceLineUpdate)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      throw new BadRequestException(`Failed to update voice line: ${error.message}`);
+    try {
+      const voiceLine = await this.voiceLineModel.findByPk(id);
+      if (!voiceLine) {
+        throw new NotFoundException(`Voice line with ID ${id} not found`);
+      }
+      await voiceLine.update(voiceLineUpdate as any);
+      return voiceLine.get({ plain: true }) as VoiceLine;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to update voice line: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    return voiceLine as VoiceLine;
   }
 
   async deleteVoiceLine(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('voice_lines')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      throw new BadRequestException(`Failed to delete voice line: ${error.message}`);
+    try {
+      const voiceLine = await this.voiceLineModel.findByPk(id);
+      if (!voiceLine) {
+        throw new NotFoundException(`Voice line with ID ${id} not found`);
+      }
+      await voiceLine.destroy();
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to delete voice line: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

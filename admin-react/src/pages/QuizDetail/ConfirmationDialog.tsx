@@ -7,7 +7,7 @@ interface ConfirmationDialogProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  variant?: 'danger' | 'default' | 'attention';
+  variant?: 'danger' | 'default' | 'primary';
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -40,7 +40,7 @@ export default function ConfirmationDialog({
           onClick: onCancel,
         },
         {
-          buttonType: variant,
+          buttonType: variant || 'danger',
           content: confirmText,
           onClick: onConfirm,
         },

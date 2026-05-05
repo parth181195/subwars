@@ -1,0 +1,172 @@
+.combined-leaderboard-page {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  .page-header {
+    margin-bottom: 0;
+
+    .header-actions{
+    
+      display: flex;
+      gap: 10px;
+      padding: 20px 0;
+      justify-content: flex-end;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 600;
+      margin: 0 0 8px 0;
+      color: var(--color-fg-default);
+    }
+
+    .page-description {
+      font-size: 16px;
+      color: var(--color-fg-muted);
+      margin: 0;
+    }
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 64px 24px;
+    color: var(--color-fg-muted);
+
+    p {
+      font-size: 16px;
+      margin: 0;
+    }
+  }
+
+  .error-state {
+    text-align: center;
+    padding: 64px 24px;
+
+    p {
+      color: var(--color-danger-fg);
+      margin-bottom: 16px;
+    }
+
+    button {
+      padding: 8px 16px;
+      background: var(--color-btn-primary-bg);
+      color: var(--color-btn-primary-text);
+      border: 1px solid var(--color-btn-primary-border);
+      border-radius: 6px;
+      cursor: pointer;
+
+      &:hover {
+        background: var(--color-btn-primary-hover-bg);
+      }
+    }
+  }
+
+  .leaderboard-table {
+    background: var(--color-canvas-default);
+    border: 1px solid var(--color-border-default);
+    border-radius: 8px;
+    overflow: hidden;
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+
+      thead {
+        background: var(--color-canvas-subtle);
+
+        th {
+          padding: 12px 16px;
+          text-align: left;
+          font-weight: 600;
+          font-size: 14px;
+          color: var(--color-fg-default);
+          border-bottom: 1px solid var(--color-border-default);
+
+          &:first-child {
+            padding-left: 24px;
+          }
+
+          &:last-child {
+            padding-right: 24px;
+          }
+        }
+      }
+
+      tbody {
+        tr {
+          border-bottom: 1px solid var(--color-border-muted);
+          transition: background-color 0.15s ease;
+
+          &:hover {
+            background: var(--color-canvas-subtle);
+          }
+
+          &:last-child {
+            border-bottom: none;
+          }
+        }
+
+        td {
+          padding: 16px;
+          font-size: 14px;
+          color: var(--color-fg-default);
+
+          &:first-child {
+            padding-left: 24px;
+          }
+
+          &:last-child {
+            padding-right: 24px;
+          }
+        }
+      }
+    }
+
+    .rank-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+
+      .rank-badge {
+        font-size: 20px;
+      }
+
+      .rank-number {
+        min-width: 24px;
+      }
+    }
+
+    .user-cell {
+      font-weight: 500;
+    }
+
+    .score-cell {
+      font-weight: 600;
+      color: var(--color-success-fg);
+      font-size: 16px;
+    }
+
+    .quizzes-cell,
+    .correct-cell,
+    .total-cell {
+      text-align: center;
+    }
+
+    .time-cell {
+      text-align: right;
+      color: var(--color-fg-muted);
+    }
+  }
+  .hidden-email-item{
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 0;
+    align-items: center;
+    border-bottom: 1px solid var(--color-border-muted);
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+

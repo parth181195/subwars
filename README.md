@@ -50,7 +50,6 @@ npm install
    # 5. Run database migrations in Supabase SQL Editor
    ```
    
-   For detailed Supabase setup instructions, see [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)
 
 ### Development
 
@@ -134,14 +133,10 @@ This project uses:
 # 6. Set up Firebase Storage and deploy storage.rules
 ```
 
-See [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for complete setup guide.
 
 ## Documentation
 
-- **Planning**: See `PLAN.md` for detailed planning and architecture documentation
-- **Supabase Setup**: See `SUPABASE_SETUP.md` for Supabase configuration guide
-- **Sequelize Setup**: See `SEQUELIZE_SETUP.md` for ORM usage guide
-- **Database Recommendation**: See `DATABASE_RECOMMENDATION.md` for database selection rationale
+See setup guides in the root directory for configuration instructions.
 
 ## Architecture Notes
 

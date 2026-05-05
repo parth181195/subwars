@@ -13,7 +13,6 @@ export default function Analytics() {
     const timer = setTimeout(() => {
       const path = location.pathname + location.search;
       analyticsService.trackPageView(path);
-      console.log('[Analytics] Page view tracked:', path);
     }, 100);
 
     return () => clearTimeout(timer);

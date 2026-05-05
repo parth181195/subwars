@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button, FormControl, TextInput, Flash } from '@primer/react';
 import { SignInIcon } from '@primer/octicons-react';
 import { adminAuthService } from '../../services/auth';
@@ -7,10 +7,14 @@ import './Login.scss';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Get the route the user was trying to access (if redirected from protected route)
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +23,8 @@ export default function LoginPage() {
 
     try {
       await adminAuthService.signInWithEmail(email, password);
-      navigate('/dashboard');
+      // Redirect to the page they were trying to access, or dashboard by default
+      navigate(from, { replace: true });
     } catch (err: unknown) {
       const error = err as { message?: string };
       setError(error.message || 'Login failed. Please check your credentials.');
@@ -40,7 +45,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <Flash variant="danger" sx={{ mb: 3 }}>
+          <Flash variant="danger" className="error-message">
             {error}
           </Flash>
         )}
@@ -59,7 +64,7 @@ export default function LoginPage() {
             />
           </FormControl>
 
-          <FormControl required sx={{ mt: 3 }}>
+          <FormControl required className="login-form-group">
             <FormControl.Label htmlFor="password">Password</FormControl.Label>
             <TextInput
               id="password"

@@ -47,6 +47,7 @@ export interface User {
   upi_id?: string;
   registration_status: RegistrationStatus;
   admin_notes?: string;
+  is_banned: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -69,6 +70,7 @@ export interface UserInsert {
   upi_id?: string;
   registration_status?: RegistrationStatus;
   admin_notes?: string;
+  is_banned?: boolean;
 }
 
 export interface UserUpdate {
@@ -89,6 +91,7 @@ export interface UserUpdate {
   upi_id?: string;
   registration_status?: RegistrationStatus;
   admin_notes?: string;
+  is_banned?: boolean;
 }
 
 // Quiz types
@@ -99,6 +102,12 @@ export interface Quiz {
   scheduled_at?: string;
   status: QuizStatus;
   created_by?: string;
+  allowed_emails?: string[]; // Emails allowed to submit answers (empty/null = all can participate)
+  auto_mode_enabled?: boolean; // If true, questions will cycle automatically
+  auto_mode_paused?: boolean; // If true, auto mode is paused (will resume when set to false)
+  auto_mode_interval_seconds?: number; // Time between question activations in auto mode (default: 120)
+  quiz_duration_minutes?: number; // Total quiz duration in minutes (used to calculate interval automatically)
+  excluded_from_combined_leaderboard?: boolean; // If true, exclude this quiz's answers from combined leaderboard
   created_at: string;
   updated_at: string;
 }
@@ -109,6 +118,12 @@ export interface QuizInsert {
   scheduled_at?: string;
   status?: QuizStatus;
   created_by?: string;
+  allowed_emails?: string[];
+  auto_mode_enabled?: boolean;
+  auto_mode_paused?: boolean;
+  auto_mode_interval_seconds?: number;
+  quiz_duration_minutes?: number;
+  excluded_from_combined_leaderboard?: boolean;
 }
 
 export interface QuizUpdate {
@@ -117,6 +132,12 @@ export interface QuizUpdate {
   scheduled_at?: string;
   status?: QuizStatus;
   created_by?: string;
+  allowed_emails?: string[];
+  auto_mode_enabled?: boolean;
+  auto_mode_paused?: boolean;
+  auto_mode_interval_seconds?: number;
+  quiz_duration_minutes?: number;
+  excluded_from_combined_leaderboard?: boolean;
 }
 
 // Question types
@@ -182,7 +203,11 @@ export interface Answer {
   response_time?: number; // Milliseconds from question start
   question_started_at?: string; // When the question started (for response time calculation)
   score: number;
+  attempt_count: number; // Number of attempts for this question (max 3)
   submitted_at: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+  excluded_from_combined?: boolean; // If true, exclude from combined leaderboard but keep in quiz-specific leaderboards
 }
 
 export interface AnswerInsert {
@@ -203,38 +228,53 @@ export interface AnswerUpdate {
   is_correct?: boolean;
   response_time?: number;
   score?: number;
+  attempt_count?: number;
+  deleted_at?: string | Date | null;
 }
 
 // Answer with joined user data (for leaderboard)
 export interface AnswerWithUser extends Answer {
+  user_email?: string;
   users?: {
     in_game_name?: string;
     profile_image_url?: string;
+    full_name?: string;
   };
 }
 
 // Voice Line types
+// New structure uses subcollections: heroes/{heroName}/voice_lines
 export interface VoiceLine {
   id: string;
-  hero_name: string;
-  voice_line_url: string;
-  file_name: string;
-  metadata?: Record<string, any>;
-  scraped_at: string;
+  hero_name?: string; // Optional - determined by subcollection path, added for compatibility
+  name: string; // Voice line name/title
+  url: string; // Voice line URL (bunny_cdn_link, voice_line_link, or audio_url)
+  bunny_cdn_link?: string;
+  bunny_cdn_path?: string;
+  category?: string;
+  line_text?: string;
+  scraped_at?: string; // Optional in new structure
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface VoiceLineInsert {
-  hero_name: string;
-  voice_line_url: string;
-  file_name: string;
-  metadata?: Record<string, any>;
+  hero_name?: string; // Optional, since it's determined by subcollection path
+  name: string;
+  url: string;
+  bunny_cdn_link?: string;
+  bunny_cdn_path?: string;
+  category?: string;
+  line_text?: string;
 }
 
 export interface VoiceLineUpdate {
-  hero_name?: string;
-  voice_line_url?: string;
-  file_name?: string;
-  metadata?: Record<string, any>;
+  name?: string;
+  url?: string;
+  bunny_cdn_link?: string;
+  bunny_cdn_path?: string;
+  category?: string;
+  line_text?: string;
 }
 
 // Admin User types

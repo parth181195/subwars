@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Button, FormControl, TextInput, Flash, Label, IconButton, Dialog } from '@primer/react';
-import { TrashIcon } from '@primer/octicons-react';
-import { adminAuthService } from '../../services/auth';
+import { Button, FormControl, TextInput, Label, IconButton, Checkbox } from '@primer/react';
+import { TrashIcon, ArrowUpIcon, ArrowDownIcon } from '@primer/octicons-react';
 import { environment } from '../../config/environment';
+import { authenticatedFetch } from '../../utils/api-client';
+import LoadingSpinner from '../../components/LoadingSpinner/LoadingSpinner';
+import EmptyState from '../../components/EmptyState/EmptyState';
+import ConfirmationDialog from '../QuizDetail/ConfirmationDialog';
+import ToastContainer, { useToast } from '../../components/Toast/ToastContainer';
 import './Settings.scss';
 
 interface AdminUser {
@@ -13,15 +17,22 @@ interface AdminUser {
   isBuiltIn?: boolean;
 }
 
+interface Sponsor {
+  name: string;
+  order: number;
+}
+
 export default function Settings() {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [streamUrl, setStreamUrl] = useState('');
-  const [upiId, setUpiId] = useState('');
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentError, setPaymentError] = useState('');
-  const [paymentSuccess, setPaymentSuccess] = useState('');
+  const [showStream, setShowStream] = useState(false);
+  const [prizePool, setPrizePool] = useState('');
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+  const [newSponsorName, setNewSponsorName] = useState('');
+  const [configLoading, setConfigLoading] = useState(false);
+  const { toasts, addToast, removeToast } = useToast();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,25 +42,17 @@ export default function Settings() {
 
   const loadAdminUsers = async () => {
     setLoading(true);
-    const client = adminAuthService.supabaseClient;
-
-    if (!client) {
-      setLoading(false);
-      return;
-    }
 
     try {
-      // Fetch admin users from database
-      const { data, error } = await client
-        .from('admin_users')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw error;
+      // Fetch admin users from backend
+      const response = await authenticatedFetch(`${environment.apiBaseUrl}/api/admin/users`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to load admin users: ${response.statusText}`);
       }
 
-      const dbAdminUsers: AdminUser[] = (data || []).map(user => ({
+      const responseData = await response.json();
+      const dbAdminUsers: AdminUser[] = (Array.isArray(responseData) ? responseData : []).map((user: any) => ({
         ...user,
         isBuiltIn: false
       }));
@@ -96,12 +99,6 @@ export default function Settings() {
       return;
     }
 
-    const client = adminAuthService.supabaseClient;
-    if (!client) {
-      setAddAdminError('Database connection not available');
-      return;
-    }
-
     // Check if user is in built-in list
     if (environment.allowedAdminEmails.includes(newAdminEmail)) {
       setAddAdminError('This email is already a built-in admin.');
@@ -111,64 +108,58 @@ export default function Settings() {
     setLoading(true);
 
     try {
-      // Check if user already exists in DB
-      const { data: existingDbUser, error: checkError } = await client
-        .from('admin_users')
-        .select('id')
-        .eq('email', newAdminEmail)
-        .maybeSingle();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        // PGRST116 is "not found" error, which is okay
-        throw checkError;
-      }
-
-      if (existingDbUser) {
-        setAddAdminError('This email is already an admin in the database.');
-        setLoading(false);
-        return;
-      }
-
-      // Add new admin user
-      const { error } = await client
-        .from('admin_users')
-        .insert({
+      // Invite admin user via backend
+      const response = await authenticatedFetch(`${environment.apiBaseUrl}/api/admin/users/invite`, {
+        method: 'POST',
+        body: JSON.stringify({
           email: newAdminEmail,
           role: 'admin',
-          password_hash: '', // Password will be set via Supabase Auth
-        });
+        }),
+      });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || `Failed to invite admin: ${response.statusText}`);
       }
 
+      const result = await response.json();
+      
       setNewAdminEmail('');
       setAddAdminError('');
+      
+      // Show success message (if available)
+      if (result.message) {
+        // You could show a success toast here
+        console.log('Success:', result.message);
+      }
+      
       await loadAdminUsers();
     } catch (error: unknown) {
       const err = error as { message?: string };
-      setAddAdminError('Failed to add admin user: ' + (err.message || 'Unknown error'));
+      setAddAdminError('Failed to invite admin user: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
   };
 
   const removeAdminUser = async (email: string) => {
-    const client = adminAuthService.supabaseClient;
-    if (!client) {
+    // Cannot delete built-in admins
+    if (environment.allowedAdminEmails.includes(email)) {
+      console.error('Cannot delete built-in admin');
       return;
     }
 
     setLoading(true);
 
     try {
-      const { error } = await client
-        .from('admin_users')
-        .delete()
-        .eq('email', email);
+      // Delete admin user via backend
+      const response = await authenticatedFetch(`${environment.apiBaseUrl}/api/admin/users/${encodeURIComponent(email)}`, {
+        method: 'DELETE',
+      });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || `Failed to remove admin: ${response.statusText}`);
       }
 
       await loadAdminUsers();
@@ -181,69 +172,114 @@ export default function Settings() {
   };
 
   const loadPaymentConfig = async () => {
-    const client = adminAuthService.supabaseClient;
-    if (!client) return;
-
     try {
-      // Fetch payment config from a settings/config table
-      // For now, we'll check if there's a config table or use a simple key-value store
-      const { data, error } = await client
-        .from('app_config')
-        .select('*')
-        .eq('key', 'payment_config')
-        .single();
-
-      if (!error && data?.value) {
-        const config = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        setStreamUrl(config.streamUrl || '');
-        setUpiId(config.upiId || '');
+      const response = await authenticatedFetch(`${environment.apiBaseUrl}/api/admin/settings/config`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStreamUrl(data.streamUrl || '');
+        setShowStream(data.showStream ?? false);
+        setPrizePool(data.prizePool || '');
+        setSponsors(data.sponsors || []);
+      } else if (response.status === 404) {
+        // Config doesn't exist yet, that's okay
+        console.log('Config not found, using defaults');
       }
     } catch (error) {
-      console.error('Failed to load payment config:', error);
-      // Config table might not exist yet, that's okay
+      console.error('Failed to load config:', error);
     }
   };
 
-  const savePaymentConfig = async () => {
-    setPaymentError('');
-    setPaymentSuccess('');
-    setPaymentLoading(true);
+  const handleAddSponsor = () => {
+    if (!newSponsorName.trim()) return;
+    
+    const maxOrder = sponsors.length > 0 
+      ? Math.max(...sponsors.map(s => s.order)) 
+      : 0;
+    
+    const newSponsor: Sponsor = {
+      name: newSponsorName.trim(),
+      order: maxOrder + 1,
+    };
+    
+    setSponsors([...sponsors, newSponsor]);
+    setNewSponsorName('');
+  };
 
-    const client = adminAuthService.supabaseClient;
-    if (!client) {
-      setPaymentError('Database connection not available');
-      setPaymentLoading(false);
-      return;
-    }
+  const handleRemoveSponsor = (index: number) => {
+    const sorted = [...sponsors].sort((a, b) => a.order - b.order);
+    const updated = sorted.filter((_, i) => i !== index);
+    // Reorder remaining sponsors
+    const reordered = updated.map((sponsor, i) => ({
+      ...sponsor,
+      order: i + 1,
+    }));
+    setSponsors(reordered);
+  };
+
+  const handleMoveSponsor = (index: number, direction: 'up' | 'down') => {
+    const sorted = [...sponsors].sort((a, b) => a.order - b.order);
+    
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === sorted.length - 1) return;
+    
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    const temp = sorted[index].order;
+    sorted[index].order = sorted[newIndex].order;
+    sorted[newIndex].order = temp;
+    
+    setSponsors(sorted);
+  };
+
+  const saveConfig = async () => {
+    setConfigLoading(true);
 
     try {
       const config = {
         streamUrl: streamUrl.trim(),
-        upiId: upiId.trim(),
+        showStream: showStream,
+        prizePool: prizePool.trim(),
+        sponsors: sponsors,
       };
 
-      // Upsert payment config
-      const { error } = await client
-        .from('app_config')
-        .upsert({
-          key: 'payment_config',
-          value: config,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'key'
-        });
+      console.log('[AdminSettings] Saving config:', config);
+      console.log('[AdminSettings] Sponsors count:', sponsors.length);
+      console.log('[AdminSettings] Sponsors data:', JSON.stringify(sponsors, null, 2));
 
-      if (error) {
-        throw error;
+      const response = await authenticatedFetch(`${environment.apiBaseUrl}/api/admin/settings/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config),
+      });
+
+      console.log('[AdminSettings] Save response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to save configuration');
       }
 
-      setPaymentSuccess('Payment configuration saved successfully!');
-      setTimeout(() => setPaymentSuccess(''), 3000);
+      addToast({
+        type: 'success',
+        title: 'Configuration Saved',
+        message: 'App configuration has been saved successfully.',
+        duration: 4000,
+      });
+      
+      // Reload config to get the saved data
+      await loadPaymentConfig();
     } catch (error: unknown) {
       const err = error as { message?: string };
-      setPaymentError('Failed to save payment configuration: ' + (err.message || 'Unknown error'));
+      addToast({
+        type: 'error',
+        title: 'Save Failed',
+        message: err.message || 'Failed to save configuration. Please try again.',
+        duration: 5000,
+      });
     } finally {
-      setPaymentLoading(false);
+      setConfigLoading(false);
     }
   };
 
@@ -271,7 +307,8 @@ export default function Settings() {
               }}
               placeholder="newadmin@example.com"
               block
-              sx={{ maxWidth: '400px' }}
+              className="admin-email-input"
+              style={{ maxWidth: '400px' }}
             />
             {addAdminError && (
               <FormControl.Validation variant="error">{addAdminError}</FormControl.Validation>
@@ -281,7 +318,7 @@ export default function Settings() {
             variant="primary"
             onClick={addAdminUser}
             disabled={!newAdminEmail || loading}
-            sx={{ mt: 3 }}
+            className="add-admin-button"
           >
             Add Admin
           </Button>
@@ -290,13 +327,11 @@ export default function Settings() {
         <div className="admin-users-list">
           <h3 className="list-title">Current Admin Users</h3>
           {loading ? (
-            <div className="loading-container">
-              <p>Loading admin users...</p>
-            </div>
+            <LoadingSpinner message="Loading admin users..." />
           ) : adminUsers.length === 0 ? (
-            <div className="empty-state">
-              <p>No admin users found. Add one above to get started.</p>
-            </div>
+            <EmptyState
+              message="No admin users found. Add one above to get started."
+            />
           ) : (
             <div className="admin-users-table">
               <table>
@@ -313,9 +348,9 @@ export default function Settings() {
                     <tr key={user.id}>
                       <td>{user.email}</td>
                       <td>
-                        <Label variant="secondary" sx={{ mr: 2 }}>{user.role}</Label>
+                        <Label variant="default">{user.role}</Label>
                         {user.isBuiltIn && (
-                          <Label variant="secondary">Built-in</Label>
+                          <Label variant="default">Built-in</Label>
                         )}
                       </td>
                       <td>
@@ -335,37 +370,21 @@ export default function Settings() {
                               disabled={loading}
                               variant="danger"
                             />
-                            <Dialog
-                              isOpen={deleteConfirmOpen === user.email}
-                              onDismiss={() => setDeleteConfirmOpen(null)}
-                              aria-labelledby="delete-admin-dialog-title"
-                            >
-                              <Dialog.Header id="delete-admin-dialog-title">
-                                Remove Admin
-                              </Dialog.Header>
-                              <Dialog.Content>
-                                Are you sure you want to remove {user.email} as an admin?
-                              </Dialog.Content>
-                              <Dialog.Footer>
-                                <Button
-                                  variant="secondary"
-                                  onClick={() => setDeleteConfirmOpen(null)}
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  variant="danger"
-                                  onClick={async () => {
-                                    if (deleteConfirmOpen) {
-                                      await removeAdminUser(deleteConfirmOpen);
-                                      setDeleteConfirmOpen(null);
-                                    }
-                                  }}
-                                >
-                                  Remove
-                                </Button>
-                              </Dialog.Footer>
-                            </Dialog>
+                            {deleteConfirmOpen === user.email && (
+                              <ConfirmationDialog
+                                isOpen={true}
+                                title="Remove Admin"
+                                message={`Are you sure you want to remove ${user.email} as an admin?`}
+                                confirmText="Remove"
+                                cancelText="Cancel"
+                                variant="danger"
+                                onConfirm={async () => {
+                                  await removeAdminUser(user.email);
+                                  setDeleteConfirmOpen(null);
+                                }}
+                                onCancel={() => setDeleteConfirmOpen(null)}
+                              />
+                            )}
                           </>
                         )}
                       </td>
@@ -378,24 +397,12 @@ export default function Settings() {
         </div>
       </section>
 
-      {/* Payment Configuration Section */}
+      {/* App Configuration Section */}
       <section className="settings-section">
-        <h2 className="section-title">Payment Configuration</h2>
+        <h2 className="section-title">App Configuration</h2>
         <p className="section-description">
-          Configure stream URL and UPI ID for payment QR codes.
+          Configure stream URL and prize pool for the website.
         </p>
-
-        {paymentError && (
-          <Flash variant="danger" sx={{ mb: 3 }}>
-            {paymentError}
-          </Flash>
-        )}
-
-        {paymentSuccess && (
-          <Flash variant="success" sx={{ mb: 3 }}>
-            {paymentSuccess}
-          </Flash>
-        )}
 
         <div className="payment-config-form">
           <FormControl>
@@ -407,36 +414,137 @@ export default function Settings() {
               onChange={(e) => setStreamUrl(e.target.value)}
               placeholder="https://example.com/stream"
               block
-              sx={{ maxWidth: '500px' }}
+              className="config-input"
+              style={{ maxWidth: '500px' }}
             />
-            <FormControl.Caption>The stream URL that will be displayed in payment QR codes</FormControl.Caption>
+            <FormControl.Caption>The YouTube stream URL (e.g., https://www.youtube.com/embed/VIDEO_ID or full YouTube URL)</FormControl.Caption>
           </FormControl>
 
-          <FormControl sx={{ mt: 3 }}>
-            <FormControl.Label htmlFor="upi-id">UPI ID</FormControl.Label>
+          <FormControl>
+            <FormControl.Label>
+              <Checkbox
+                checked={showStream}
+                onChange={(e) => setShowStream(e.target.checked)}
+              />
+              <span style={{ marginLeft: '8px' }}>Show Live Stream on Home Page</span>
+            </FormControl.Label>
+            <FormControl.Caption>Enable this to display the YouTube stream embed above the hero section on the home page</FormControl.Caption>
+          </FormControl>
+
+          <FormControl>
+            <FormControl.Label htmlFor="prize-pool">Prize Pool</FormControl.Label>
             <TextInput
-              id="upi-id"
+              id="prize-pool"
               type="text"
-              value={upiId}
-              onChange={(e) => setUpiId(e.target.value)}
-              placeholder="yourname@upi"
+              value={prizePool}
+              onChange={(e) => setPrizePool(e.target.value)}
+              placeholder="₹4,00,000+"
               block
-              sx={{ maxWidth: '500px' }}
+              className="config-input"
+              style={{ maxWidth: '500px' }}
             />
-            <FormControl.Caption>Your UPI ID for receiving payments</FormControl.Caption>
+            <FormControl.Caption>The current prize pool amount displayed in the hero header (e.g., "₹4,00,000+")</FormControl.Caption>
           </FormControl>
 
           <Button
             variant="primary"
-            onClick={savePaymentConfig}
-            disabled={paymentLoading}
-            sx={{ mt: 3 }}
+            onClick={saveConfig}
+            disabled={configLoading}
+            className="save-config-button"
           >
-            {paymentLoading ? 'Saving...' : 'Save Configuration'}
+            {configLoading ? 'Saving...' : 'Save Configuration'}
           </Button>
         </div>
       </section>
+
+      {/* Sponsors Section */}
+      <section className="settings-section">
+        <h2 className="section-title">Sponsors</h2>
+        <p className="section-description">
+          Manage sponsors for SUB WARS. Sponsors will be displayed on the home page and sponsors page.
+        </p>
+
+        <div className="sponsors-form">
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <TextInput
+              type="text"
+              value={newSponsorName}
+              onChange={(e) => setNewSponsorName(e.target.value)}
+              placeholder="Sponsor name"
+              style={{ flexGrow: 1, maxWidth: '400px' }}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleAddSponsor();
+                }
+              }}
+            />
+            <Button onClick={handleAddSponsor} disabled={!newSponsorName.trim()}>
+              Add Sponsor
+            </Button>
+          </div>
+
+          {sponsors.length > 0 && (
+            <div className="sponsors-list">
+              <table style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Order</th>
+                    <th style={{ textAlign: 'left' }}>Name</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sponsors.sort((a, b) => a.order - b.order).map((sponsor, index) => (
+                    <tr key={index}>
+                      <td>{sponsor.order}</td>
+                      <td>{sponsor.name}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
+                          <IconButton
+                            icon={ArrowUpIcon}
+                            aria-label="Move Up"
+                            onClick={() => handleMoveSponsor(index, 'up')}
+                            disabled={index === 0}
+                            variant="invisible"
+                          />
+                          <IconButton
+                            icon={ArrowDownIcon}
+                            aria-label="Move Down"
+                            onClick={() => handleMoveSponsor(index, 'down')}
+                            disabled={index === sponsors.length - 1}
+                            variant="invisible"
+                          />
+                          <IconButton
+                            icon={TrashIcon}
+                            aria-label="Remove Sponsor"
+                            onClick={() => handleRemoveSponsor(index)}
+                            variant="danger"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {sponsors.length === 0 && (
+            <EmptyState message="No sponsors added yet. Add one above to get started." />
+          )}
+
+          <Button
+            variant="primary"
+            onClick={saveConfig}
+            disabled={configLoading}
+            className="save-config-button"
+            style={{ marginTop: '20px' }}
+          >
+            {configLoading ? 'Saving...' : 'Save Sponsors'}
+          </Button>
+        </div>
+      </section>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }
-
